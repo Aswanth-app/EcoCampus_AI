@@ -1,0 +1,25 @@
+# Next.js
+/.next/
+/out/
+tsconfig.tsbuildinfo
+
+# Dependencies
+/node_modules/
+
+# Environment Variables & Secrets
+.env
+.env.*
+.env*.local
+!.env.example
+*.pem
+*.key
+*.cert
+
+# IDE / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Vercel
+.vercel
