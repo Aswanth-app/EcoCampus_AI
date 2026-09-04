@@ -1,12 +1,20 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { WaterAnalysisResult, RiskLevel, DetectedAnomaly, BaselineProfile, Alert, Insight } from "@/types";
-import { useTelemetry } from "./use-telemetry";
+import type { WaterAnalysisResult, RiskLevel, DetectedAnomaly, BaselineProfile, Alert, Insight } from "@/types";
+import { LiveTelemetryResponse, useTelemetry } from "./use-telemetry";
 import { evaluateWaterTelemetry } from "./ai/water-engine";
 
-export function useWaterAi(pollIntervalMs: number = 6000) {
-  const { data: telemetryData, metrics } = useTelemetry(4000);
+export function useWaterAi(
+  pollIntervalMs: number = 6000,
+  externalTelemetryData?: LiveTelemetryResponse | null,
+  isOnlineOverride?: boolean
+) {
+  // Only invoke internal useTelemetry if external data is not provided
+  const internalTelemetry = useTelemetry(externalTelemetryData ? 0 : 4000);
+  const telemetryData = externalTelemetryData !== undefined ? externalTelemetryData : internalTelemetry.data;
+  const isOnline = isOnlineOverride !== undefined ? isOnlineOverride : internalTelemetry.metrics.isOnline;
+
   const [analysisResult, setAnalysisResult] = useState<WaterAnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -125,7 +133,7 @@ export function useWaterAi(pollIntervalMs: number = 6000) {
     if (!analysisResult || !telemetryData?.latest) {
       return null;
     }
-    const isOffline = !metrics.isOnline;
+    const isOffline = !isOnline;
     const currentFlow = analysisResult.latestFlowRateLpm;
     const isZeroFlow = currentFlow < 0.05;
 
@@ -171,7 +179,7 @@ export function useWaterAi(pollIntervalMs: number = 6000) {
       alertId: "alt_normal",
       createdAt: analysisResult.evaluatedAt,
     };
-  }, [analysisResult, telemetryData, metrics.isOnline, isAnomaly, activeAnomalies, liveAlerts]);
+  }, [analysisResult, telemetryData, isOnline, isAnomaly, activeAnomalies, liveAlerts]);
 
   return {
     analysisResult,
@@ -184,7 +192,7 @@ export function useWaterAi(pollIntervalMs: number = 6000) {
     baseline,
     isLoading,
     error,
-    isOnline: metrics.isOnline,
+    isOnline,
     evaluatedAt: analysisResult?.evaluatedAt || null,
     evaluateNow: runEvaluation,
   };

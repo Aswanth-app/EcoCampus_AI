@@ -23,7 +23,13 @@ export const isSupabaseConfigured = Boolean(
  */
 export const supabase = createClient(
   supabaseUrl || "https://placeholder-project.supabase.co",
-  supabaseAnonKey || "placeholder-anon-key"
+  supabaseAnonKey || "placeholder-anon-key",
+  {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  }
 );
 
 /**

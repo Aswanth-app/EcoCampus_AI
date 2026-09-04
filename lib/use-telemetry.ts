@@ -146,12 +146,13 @@ export function useTelemetry(pollIntervalMs: number = 4000) {
     };
   }, [fetchLiveTelemetry, pollIntervalMs]);
 
-  // Supabase Realtime channel subscription
+  // Supabase Realtime channel subscription with unique channel identifier
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
+    const channelId = `realtime-telemetry-${Math.random().toString(36).substring(2, 9)}`;
     const channel = supabase
-      .channel("realtime-telemetry-feed")
+      .channel(channelId)
       .on(
         "postgres_changes",
         {
@@ -179,10 +180,18 @@ export function useTelemetry(pollIntervalMs: number = 4000) {
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "CHANNEL_ERROR") {
+          console.warn("Realtime telemetry subscription warning:", status);
+        }
+      });
 
     return () => {
-      supabase.removeChannel(channel);
+      try {
+        supabase.removeChannel(channel);
+      } catch (err) {
+        console.warn("Error removing telemetry realtime channel:", err);
+      }
     };
   }, [fetchLiveTelemetry]);
 

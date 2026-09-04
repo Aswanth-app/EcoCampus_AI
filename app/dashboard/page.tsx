@@ -32,7 +32,7 @@ export default function DashboardPage() {
   const { data: telemetryData, metrics, isLoading, isLiveReceiving, refetch } = useTelemetry(4000);
 
   // Live Water Intelligence & Anomaly Engine Hook
-  const { analysisResult, riskScore, riskLevel, isAnomaly, liveAlerts, liveInsight, isOnline } = useWaterAi(6000);
+  const { analysisResult, riskScore, riskLevel, isAnomaly, liveAlerts, liveInsight, isOnline } = useWaterAi(6000, telemetryData, metrics.isOnline);
 
   const mainCampus = MOCK_CAMPUSES[0];
 

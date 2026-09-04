@@ -31,7 +31,7 @@ export default function WaterPage() {
   const { data: telemetryData, metrics, isLoading, isLiveReceiving, refetch } = useTelemetry(4000);
 
   // Live Water Intelligence & Anomaly Engine Hook
-  const { analysisResult, riskScore, riskLevel, isAnomaly, liveAlerts, baseline, isOnline } = useWaterAi(6000);
+  const { analysisResult, riskScore, riskLevel, isAnomaly, liveAlerts, baseline, isOnline } = useWaterAi(6000, telemetryData, metrics.isOnline);
 
   // Dynamically map buildings: Bind Hostel Block A to live ESP32 node metrics
   const mappedBuildings: Building[] = MOCK_BUILDINGS.map((bld) => {
