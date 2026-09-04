@@ -167,7 +167,7 @@ export interface UsageTrendPoint {
 // Water Intelligence & AI Anomaly Types (Additive)
 // ============================================================================
 
-export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+export type RiskLevel = "NORMAL" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 
 export type WaterAnomalyType =
   | "continuous_flow"

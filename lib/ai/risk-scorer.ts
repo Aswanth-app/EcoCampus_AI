@@ -18,8 +18,8 @@ export interface CompositeRiskScore {
 export function computeCompositeRiskScore(anomalies: DetectedAnomaly[]): CompositeRiskScore {
   if (!anomalies || anomalies.length === 0) {
     return {
-      score: 5,
-      level: "LOW",
+      score: 0,
+      level: "NORMAL",
       severity: "info",
       primaryAnomaly: null,
     };
@@ -38,21 +38,21 @@ export function computeCompositeRiskScore(anomalies: DetectedAnomaly[]): Composi
     combinedScore = Math.min(100, combinedScore + compoundingPenalty);
   }
 
-  // Determine risk level category
-  let level: RiskLevel = "LOW";
+  // Determine risk level category (0-30 Normal, 31-50 Low, 51-75 Medium, 76-100 Critical)
+  let level: RiskLevel = "NORMAL";
   let severity: AlertSeverity = "info";
 
-  if (combinedScore >= 85) {
+  if (combinedScore >= 76) {
     level = "CRITICAL";
     severity = "critical";
-  } else if (combinedScore >= 60) {
-    level = "HIGH";
-    severity = "warning";
-  } else if (combinedScore >= 30) {
+  } else if (combinedScore >= 51) {
     level = "MEDIUM";
     severity = "warning";
-  } else {
+  } else if (combinedScore >= 31) {
     level = "LOW";
+    severity = "info";
+  } else {
+    level = "NORMAL";
     severity = "info";
   }
 

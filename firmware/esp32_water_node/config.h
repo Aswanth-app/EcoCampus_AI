@@ -23,7 +23,7 @@
 // Use your laptop's Wi-Fi hotspot IP (e.g. "http://192.168.43.100:3000/api/v1/telemetry/ingest")
 // When deployed to production / cloud:
 // Use your secure HTTPS domain (e.g. "https://your-domain.vercel.app/api/v1/telemetry/ingest")
-#define API_SERVER_URL      "https://ecocampusai.netlify.app/api/v1/telemetry/ingest"
+#define API_SERVER_URL      "https://eco-campus-ai-nine.vercel.app/api/v1/telemetry/ingest"
 
 // Device Authentication Key
 // Must match the pre-shared key whose SHA-256 hash is registered in the devices database table

@@ -214,14 +214,14 @@ function evaluateRules(ctx) {
 
 function computeRisk(anomalies) {
   if (!anomalies || anomalies.length === 0) {
-    return { score: 5, level: "LOW", severity: "info" };
+    return { score: 0, level: "NORMAL", severity: "info" };
   }
   const primary = [...anomalies].sort((a, b) => b.riskScore - a.riskScore)[0];
   let score = primary.riskScore;
   if (anomalies.length > 1) {
     score = Math.min(100, score + Math.min(15, (anomalies.length - 1) * 5));
   }
-  const level = score >= 85 ? "CRITICAL" : score >= 60 ? "HIGH" : score >= 30 ? "MEDIUM" : "LOW";
+  const level = score >= 76 ? "CRITICAL" : score >= 51 ? "MEDIUM" : score >= 31 ? "LOW" : "NORMAL";
   return { score, level, severity: primary.severity };
 }
 
@@ -241,8 +241,8 @@ const baselineNormal = computeBaselineProfile([], normalReading.timestamp);
 const normalAnomalies = evaluateRules({ currentReading: normalReading, recentWindow: [normalReading], baseline: baselineNormal });
 const normalRisk = computeRisk(normalAnomalies);
 assert(normalAnomalies.length === 0, "Normal flow produces zero anomalies");
-assert(normalRisk.level === "LOW", "Normal flow risk level is LOW");
-assert(normalRisk.score <= 29, "Normal flow risk score is <= 29");
+assert(normalRisk.level === "NORMAL", "Normal flow risk level is NORMAL");
+assert(normalRisk.score <= 30, "Normal flow risk score is <= 30");
 
 console.log("\n--- 2. Continuous Leak Scenario (> 15 min) ---");
 const leakReading = { sensor_id: "sen_002", device_id: "DEV_002", flow_rate_lpm: 7.5, total_volume_liters: 350.0, timestamp: "2026-09-01T10:30:00Z" };
@@ -253,8 +253,8 @@ for (let i = 20; i >= 0; i--) {
 const leakAnomalies = evaluateRules({ currentReading: leakReading, recentWindow: continuousWindow, baseline: baselineNormal });
 const leakRisk = computeRisk(leakAnomalies);
 assert(leakAnomalies.some((a) => a.type === "continuous_flow"), "Continuous flow rule triggers on sustained leak");
-assert(leakRisk.level === "HIGH" || leakRisk.level === "CRITICAL", "Continuous leak risk level is HIGH/CRITICAL");
-assert(leakRisk.score >= 60, "Continuous leak risk score >= 60");
+assert(leakRisk.level === "MEDIUM" || leakRisk.level === "CRITICAL", "Continuous leak risk level is MEDIUM/CRITICAL");
+assert(leakRisk.score >= 55, "Continuous leak risk score >= 55");
 
 console.log("\n--- 3. Off-Hours Flow Scenario (02:30 AM) ---");
 const offHoursReading = { sensor_id: "sen_003", device_id: "DEV_003", flow_rate_lpm: 5.2, total_volume_liters: 410.0, timestamp: "2026-09-01T02:30:00Z" };

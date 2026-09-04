@@ -76,7 +76,7 @@ export function useWaterAi(
   }, [runEvaluation, pollIntervalMs]);
 
   const riskScore: number = isOnline ? (analysisResult?.compositeRiskScore ?? 0) : 0;
-  const riskLevel: RiskLevel = isOnline ? (analysisResult?.compositeRiskLevel ?? "LOW") : "LOW";
+  const riskLevel: RiskLevel = isOnline ? (analysisResult?.compositeRiskLevel ?? "NORMAL") : "NORMAL";
   const isAnomaly: boolean = isOnline ? (analysisResult?.isAnomaly ?? false) : false;
   const activeAnomalies: DetectedAnomaly[] = isOnline ? (analysisResult?.anomalies ?? []) : [];
   const baseline: BaselineProfile | null = isOnline ? (analysisResult?.baseline ?? null) : null;
