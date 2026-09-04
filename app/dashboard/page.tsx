@@ -149,9 +149,9 @@ export default function DashboardPage() {
               ? metrics.totalVolumeLiters.toFixed(2)
               : metrics.lastRecordedVolumeLiters > 0
               ? metrics.lastRecordedVolumeLiters.toFixed(2)
-              : "--"
+              : "0.00"
           }
-          unit={isOnline ? "Liters" : "L (Stale)"}
+          unit={isOnline ? "Liters" : "L (Stored)"}
           trend={{
             value: isOnline && metrics.pulseCount !== null
               ? `${metrics.pulseCount.toLocaleString()} pulses`
@@ -172,8 +172,8 @@ export default function DashboardPage() {
 
         <KpiCard
           title="Current Flow Rate"
-          value={isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm.toFixed(2) : "--"}
-          unit={isOnline ? "L/min" : "Offline"}
+          value={isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm.toFixed(2) : metrics.lastRecordedFlowLpm.toFixed(2)}
+          unit={isOnline ? "L/min" : "L/min (Last)"}
           trend={
             isOnline
               ? {

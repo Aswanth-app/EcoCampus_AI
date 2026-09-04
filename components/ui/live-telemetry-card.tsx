@@ -118,10 +118,10 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
               ) : isOnline && flowRateLpm !== null ? (
                 flowRateLpm.toFixed(2)
               ) : (
-                "--"
+                lastRecordedFlowLpm.toFixed(2)
               )}
             </span>
-            <span className="text-xs text-emerald-400 font-medium">{isOnline ? "L/min" : ""}</span>
+            <span className="text-xs text-emerald-400 font-medium">{isOnline ? "L/min" : "L/min (Last)"}</span>
           </div>
           <p className="text-[10px] text-gray-400 mt-1 truncate">
             {isOnline
@@ -143,10 +143,10 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
               ) : isOnline && totalVolumeLiters !== null ? (
                 totalVolumeLiters.toFixed(2)
               ) : (
-                "--"
+                lastRecordedVolumeLiters.toFixed(2)
               )}
             </span>
-            <span className="text-xs text-teal-400 font-medium">{isOnline ? "Liters" : ""}</span>
+            <span className="text-xs text-teal-400 font-medium">{isOnline ? "Liters" : "L (Stored)"}</span>
           </div>
           <p className="text-[10px] text-gray-400 mt-1 truncate">
             {isOnline
@@ -168,10 +168,10 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
               ) : isOnline && pulseCount !== null ? (
                 pulseCount.toLocaleString()
               ) : (
-                "--"
+                lastRecordedPulses.toLocaleString()
               )}
             </span>
-            <span className="text-xs text-cyan-400 font-medium">{isOnline ? "pulses" : ""}</span>
+            <span className="text-xs text-cyan-400 font-medium">{isOnline ? "pulses" : "pulses (Stored)"}</span>
           </div>
           <p className="text-[10px] text-gray-400 mt-1 truncate">
             {isOnline

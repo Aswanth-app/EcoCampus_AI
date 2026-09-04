@@ -72,6 +72,35 @@ export default function WaterPage() {
       }))
     : [];
 
+  // Real CSV Export Trigger for Water Page
+  const handleExportCSV = () => {
+    if (!history || history.length === 0) {
+      alert("No telemetry records available to export.");
+      return;
+    }
+
+    const headers = ["ID", "Sensor ID", "Timestamp", "Flow Rate (L/min)", "Total Volume (Liters)", "Pulse Count", "Status", "Received At"];
+    const rows = history.map((r) => [
+      r.id,
+      r.sensor_id,
+      `"${r.timestamp}"`,
+      r.flow_rate_lpm,
+      r.total_volume_liters,
+      r.pulse_count,
+      r.status,
+      `"${r.received_at}"`,
+    ]);
+
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `ecocampus_water_telemetry_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   return (
     <AppShell>
       {/* Breadcrumb Context */}
@@ -106,8 +135,8 @@ export default function WaterPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" icon={<Download className="w-4 h-4" />}>
-            Export Telemetry Log
+          <Button variant="outline" size="sm" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}>
+            Export Telemetry Log ({history.length})
           </Button>
         </div>
       </div>
@@ -238,8 +267,8 @@ export default function WaterPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Current Flow Rate"
-          value={isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm.toFixed(2) : "--"}
-          unit={isOnline ? "L/min" : "Offline"}
+          value={isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm.toFixed(2) : metrics.lastRecordedFlowLpm.toFixed(2)}
+          unit={isOnline ? "L/min" : "L/min (Last)"}
           trend={
             isOnline
               ? {
@@ -270,9 +299,9 @@ export default function WaterPage() {
               ? metrics.totalVolumeLiters.toFixed(2)
               : metrics.lastRecordedVolumeLiters > 0
               ? metrics.lastRecordedVolumeLiters.toFixed(2)
-              : "--"
+              : "0.00"
           }
-          unit={isOnline ? "Liters" : "L (Stale)"}
+          unit={isOnline ? "Liters" : "L (Stored)"}
           trend={{
             value: isOnline && metrics.pulseCount !== null
               ? `${metrics.pulseCount.toLocaleString()} pulses`

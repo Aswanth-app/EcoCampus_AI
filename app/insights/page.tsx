@@ -6,10 +6,18 @@ import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { InsightCard } from "@/components/ui/insight-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useWaterAi } from "@/lib/use-water-ai";
 import { MOCK_INSIGHTS } from "@/data/mock-data";
-import { Sparkles, Info, ArrowRight } from "lucide-react";
+import { Sparkles, Info, Radio, Activity } from "lucide-react";
 
 export default function InsightsPage() {
+  const { liveInsight, isOnline, riskLevel, riskScore } = useWaterAi(6000);
+
+  // Combine live hardware insight at the top with campus facility recommendations
+  const allInsights = liveInsight
+    ? [liveInsight, ...MOCK_INSIGHTS.filter((i) => i.id !== "ins_01")]
+    : MOCK_INSIGHTS;
+
   return (
     <AppShell>
       {/* Breadcrumb */}
@@ -26,7 +34,15 @@ export default function InsightsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-2xl font-bold tracking-tight text-gray-900">Resource Intelligence Insights</h2>
-            <Badge variant="normal" icon={<Sparkles className="w-3.5 h-3.5" />}>Context-Aware Engine</Badge>
+            {isOnline ? (
+              <Badge variant="normal" icon={<Radio className="w-3.5 h-3.5 animate-pulse text-emerald-600" />}>
+                Live Intelligence Active (Risk: {riskLevel})
+              </Badge>
+            ) : (
+              <Badge variant="neutral" icon={<Activity className="w-3.5 h-3.5 text-gray-500" />}>
+                Hardware Node Standby
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-gray-500">
             Rule-based intelligence surfacing continuous off-peak wastage, avoidable volume estimates, and recommended facility actions.
@@ -37,27 +53,30 @@ export default function InsightsPage() {
           <Button variant="outline" size="sm" onClick={() => (window.location.href = "/alerts")}>
             View Active Alerts
           </Button>
+          <Button variant="primary" size="sm" onClick={() => (window.location.href = "/water")}>
+            Water Analytics
+          </Button>
         </div>
       </div>
 
-      {/* Notice regarding ML Evolution */}
+      {/* Notice regarding Rule-Based Intelligence */}
       <div className="p-4 rounded-xl bg-blue-50/70 border border-blue-200 flex items-start gap-3 text-xs text-blue-950">
         <Info className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
         <div>
-          <span className="font-semibold block text-blue-900">Rule-Based Intelligence Transparency</span>
+          <span className="font-semibold block text-blue-900">Explainable Multi-Rule Intelligence Engine</span>
           <p className="text-blue-800 mt-0.5">
-            The Phase 1 Water MVP uses rule-based anomaly evaluation (consecutive observations over 5-minute off-peak windows). Advanced predictive ML forecasting models are structured for introduction in Phase 4.
+            The EcoCampus AI Water Intelligence engine evaluates active telemetry against learned Gaussian baselines, continuous flow duration rules, and diurnal off-peak windows.
           </p>
         </div>
       </div>
 
       {/* Insights Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {MOCK_INSIGHTS.map((insight) => (
+        {allInsights.map((insight) => (
           <InsightCard
             key={insight.id}
             insight={insight}
-            onAction={() => (window.location.href = "/alerts")}
+            onAction={() => (window.location.href = "/water")}
           />
         ))}
       </div>

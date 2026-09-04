@@ -115,7 +115,7 @@ export default function LocationsPage() {
                 <Cpu className="w-3.5 h-3.5 text-gray-400" />
                 {location.devicesCount} Device Attached
               </span>
-              <Button size="sm" variant="ghost" icon={<ArrowRight className="w-3.5 h-3.5" />}>
+              <Button size="sm" variant="ghost" icon={<ArrowRight className="w-3.5 h-3.5" />} onClick={() => (window.location.href = "/devices")}>
                 View Devices
               </Button>
             </div>
