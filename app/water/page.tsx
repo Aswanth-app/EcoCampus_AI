@@ -33,14 +33,14 @@ export default function WaterPage() {
   // Live Water Intelligence & Anomaly Engine Hook
   const { analysisResult, riskScore, riskLevel, isAnomaly, liveAlerts, baseline, isOnline } = useWaterAi(6000, telemetryData, metrics.isOnline);
 
-  // Dynamically map buildings: Bind Hostel Block A to live ESP32 node metrics
+  // Dynamically map buildings: Bind Hostel Block A to physical ESP32 node
   const mappedBuildings: Building[] = MOCK_BUILDINGS.map((bld) => {
     if (bld.id === "bld_hostel_a") {
       return {
         ...bld,
-        currentFlowLpm: metrics.flowRateLpm,
-        waterUsageTodayLiters: metrics.totalVolumeLiters > 0 ? metrics.totalVolumeLiters : bld.waterUsageTodayLiters,
-        status: isAnomaly ? "critical" : isOnline ? "normal" : "offline",
+        currentFlowLpm: isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm : 0,
+        waterUsageTodayLiters: metrics.lastRecordedVolumeLiters > 0 ? metrics.lastRecordedVolumeLiters : bld.waterUsageTodayLiters,
+        status: isOnline ? (isAnomaly ? "critical" : "normal") : "offline",
         devicesOnlineCount: isOnline ? 1 : 0,
         devicesCount: 1,
         activeAlertsCount: liveAlerts.length,
@@ -99,7 +99,9 @@ export default function WaterPage() {
             )}
           </div>
           <p className="text-sm text-gray-500">
-            Real-time telemetry stream from physical <strong className="font-medium text-gray-800">{metrics.deviceUid}</strong> and YF-S201 flow sensor.
+            {isOnline
+              ? `Real-time telemetry stream from physical ${metrics.deviceUid} and YF-S201 flow sensor.`
+              : `Physical hardware ${metrics.deviceUid} is in standby (>120s without heartbeat).`}
           </p>
         </div>
 
@@ -117,6 +119,9 @@ export default function WaterPage() {
         flowRateLpm={metrics.flowRateLpm}
         totalVolumeLiters={metrics.totalVolumeLiters}
         pulseCount={metrics.pulseCount}
+        lastRecordedFlowLpm={metrics.lastRecordedFlowLpm}
+        lastRecordedVolumeLiters={metrics.lastRecordedVolumeLiters}
+        lastRecordedPulses={metrics.lastRecordedPulses}
         recordId={metrics.recordId}
         timestamp={metrics.latestTimestamp}
         lastSeenAt={metrics.lastSeenAt}
@@ -171,7 +176,7 @@ export default function WaterPage() {
             </div>
             <p className="mt-0.5 text-gray-600">
               {!isOnline
-                ? "Physical node DEV_ESP32_001 has had no heartbeat in >120s. Monitoring is in standby."
+                ? "Physical node DEV_ESP32_001 has had no heartbeat in >120s. Anomaly engine is on standby (zero live alerts generated)."
                 : analysisResult?.primaryReason || "Telemetry stream is operating within normal quiescent baseline limits."}
             </p>
           </div>
@@ -233,25 +238,57 @@ export default function WaterPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Current Flow Rate"
-          value={metrics.flowRateLpm.toFixed(2)}
-          unit="L/min"
-          trend={{
-            value: metrics.flowRateLpm > 0 ? "Active Flow" : "Quiescent (Zero Flow)",
-            direction: metrics.flowRateLpm > 0 ? "up" : "neutral",
-            label: "YF-S201",
-            isPositive: true,
-          }}
+          value={isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm.toFixed(2) : "--"}
+          unit={isOnline ? "L/min" : "Offline"}
+          trend={
+            isOnline
+              ? {
+                  value: (metrics.flowRateLpm ?? 0) > 0 ? "Active Flow" : "Quiescent (Zero Flow)",
+                  direction: (metrics.flowRateLpm ?? 0) > 0 ? "up" : "neutral",
+                  label: "YF-S201",
+                  isPositive: true,
+                }
+              : {
+                  value: "Standby (>120s)",
+                  direction: "neutral",
+                  label: "Node Offline",
+                  isPositive: false,
+                }
+          }
           icon={<Activity className="w-5 h-5 text-emerald-600" />}
-          supportingText="Calibrated 7.5 pulses/sec/LPM"
+          supportingText={
+            isOnline
+              ? "Calibrated 7.5 pulses/sec/LPM"
+              : (metrics.lastRecordedTimestamp ? `Last recorded: ${metrics.lastRecordedFlowLpm.toFixed(2)} L/min` : "No recent telemetry")
+          }
         />
 
         <KpiCard
           title="Total Measured Volume"
-          value={metrics.totalVolumeLiters > 0 ? metrics.totalVolumeLiters.toFixed(2) : "0.00"}
-          unit="Liters"
-          trend={{ value: `${metrics.pulseCount.toLocaleString()} pulses`, direction: "up", label: "Hall Transducer", isPositive: true }}
+          value={
+            isOnline && metrics.totalVolumeLiters !== null
+              ? metrics.totalVolumeLiters.toFixed(2)
+              : metrics.lastRecordedVolumeLiters > 0
+              ? metrics.lastRecordedVolumeLiters.toFixed(2)
+              : "--"
+          }
+          unit={isOnline ? "Liters" : "L (Stale)"}
+          trend={{
+            value: isOnline && metrics.pulseCount !== null
+              ? `${metrics.pulseCount.toLocaleString()} pulses`
+              : metrics.lastRecordedPulses > 0
+              ? `${metrics.lastRecordedPulses.toLocaleString()} pulses`
+              : "0 pulses",
+            direction: isOnline ? "up" : "neutral",
+            label: isOnline ? "Hall Transducer" : "Last recorded",
+            isPositive: isOnline,
+          }}
           icon={<Droplets className="w-5 h-5 text-teal-600" />}
-          supportingText="Cumulative pulse counter"
+          supportingText={
+            isOnline
+              ? "Cumulative pulse counter"
+              : (metrics.lastRecordedTimestamp ? `Last recorded: ${formatDate(metrics.lastRecordedTimestamp)}` : "Awaiting telemetry")
+          }
         />
 
         <KpiCard
@@ -276,7 +313,7 @@ export default function WaterPage() {
                 {liveAlerts.length} Critical Event
               </Badge>
             ) : (
-              <Badge variant="normal">Normal Stream</Badge>
+              <Badge variant="normal">{isOnline ? "Normal Stream" : "Engine Standby"}</Badge>
             )
           }
           icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
@@ -351,7 +388,9 @@ export default function WaterPage() {
 
           <div className="flex items-center justify-between text-xs text-gray-500 pt-3 border-t border-gray-100">
             <span>Primary Sensor: YF-S201 Flow Sensor (Calibration Factor: 7.5 Hz/LPM)</span>
-            <span>Total Measured Volume: {metrics.totalVolumeLiters.toFixed(2)} Liters ({metrics.pulseCount.toLocaleString()} pulses)</span>
+            <span>
+              Total Measured Volume: {metrics.isOnline && metrics.totalVolumeLiters !== null ? `${metrics.totalVolumeLiters.toFixed(2)} Liters (${metrics.pulseCount?.toLocaleString()} pulses)` : metrics.lastRecordedVolumeLiters > 0 ? `${metrics.lastRecordedVolumeLiters.toFixed(2)} Liters (${metrics.lastRecordedPulses.toLocaleString()} pulses, Last Recorded)` : "Standby"}
+            </span>
           </div>
         </div>
       </ChartCard>

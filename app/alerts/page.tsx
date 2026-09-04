@@ -156,10 +156,14 @@ export default function AlertsPage() {
           ))
         ) : (
           <div className="p-8 rounded-2xl border border-dashed border-gray-200 bg-white text-center text-xs text-gray-500">
-            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
-            <p className="font-semibold text-gray-800 text-sm">No Active Live Water Anomalies</p>
-            <p className="mt-1 text-gray-400">
-              The live telemetry stream from physical node is operating within baseline parameters without threshold breaches.
+            <CheckCircle2 className={`w-8 h-8 mx-auto mb-2 ${isOnline ? "text-emerald-600" : "text-gray-400"}`} />
+            <p className="font-semibold text-gray-800 text-sm">
+              {isOnline ? "No Active Live Water Anomalies" : "Hardware Node in Standby / Offline"}
+            </p>
+            <p className="mt-1 text-gray-400 max-w-md mx-auto">
+              {isOnline
+                ? "The live telemetry stream from physical node is operating within baseline parameters without threshold breaches."
+                : "No fresh telemetry received from DEV_ESP32_001 within 120s. Anomaly engine is on standby (zero live alerts generated from stale data)."}
             </p>
           </div>
         )}

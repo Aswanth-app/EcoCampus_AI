@@ -21,47 +21,53 @@ export function useWaterAi(
 
   const runEvaluation = useCallback(async () => {
     try {
-      if (telemetryData?.latest) {
-        const latest = telemetryData.latest;
-        const history = telemetryData.history || [];
-
-        const normalizedHistory = history.map((t) => ({
-          sensor_id: t.sensor_id,
-          device_id: telemetryData.device?.device_uid || "DEV_ESP32_001",
-          flow_rate_lpm: Number(t.flow_rate_lpm) || 0,
-          total_volume_liters: Number(t.total_volume_liters) || 0,
-          pulse_count: t.pulse_count,
-          timestamp: t.timestamp,
-        }));
-
-        const currentReading = {
-          sensor_id: latest.sensor_id,
-          device_id: telemetryData.device?.device_uid || "DEV_ESP32_001",
-          flow_rate_lpm: Number(latest.flow_rate_lpm) || 0,
-          total_volume_liters: Number(latest.total_volume_liters) || 0,
-          pulse_count: latest.pulse_count,
-          timestamp: latest.timestamp,
-        };
-
-        // Real-time evaluation on the active normalized telemetry stream
-        const result = evaluateWaterTelemetry({
-          currentReading,
-          recentWindow: normalizedHistory.slice(0, 15).reverse(),
-          baselineHistory: normalizedHistory,
-          locationType: "restroom",
-          locationName: "Ground Floor Restroom",
-        });
-
-        setAnalysisResult(result);
+      // STRICT RULE: Only evaluate active live telemetry if node is verified online within heartbeat window
+      if (!isOnline || !telemetryData?.latest) {
+        setAnalysisResult(null);
         setError(null);
+        setIsLoading(false);
+        return;
       }
+
+      const latest = telemetryData.latest;
+      const history = telemetryData.history || [];
+
+      const normalizedHistory = history.map((t) => ({
+        sensor_id: t.sensor_id,
+        device_id: telemetryData.device?.device_uid || "DEV_ESP32_001",
+        flow_rate_lpm: Number(t.flow_rate_lpm) || 0,
+        total_volume_liters: Number(t.total_volume_liters) || 0,
+        pulse_count: t.pulse_count,
+        timestamp: t.timestamp,
+      }));
+
+      const currentReading = {
+        sensor_id: latest.sensor_id,
+        device_id: telemetryData.device?.device_uid || "DEV_ESP32_001",
+        flow_rate_lpm: Number(latest.flow_rate_lpm) || 0,
+        total_volume_liters: Number(latest.total_volume_liters) || 0,
+        pulse_count: latest.pulse_count,
+        timestamp: latest.timestamp,
+      };
+
+      // Real-time evaluation on the active normalized telemetry stream
+      const result = evaluateWaterTelemetry({
+        currentReading,
+        recentWindow: normalizedHistory.slice(0, 15).reverse(),
+        baselineHistory: normalizedHistory,
+        locationType: "restroom",
+        locationName: "Ground Floor Restroom",
+      });
+
+      setAnalysisResult(result);
+      setError(null);
     } catch (err: any) {
       console.warn("useWaterAi evaluation error:", err?.message);
       setError(err?.message || "AI evaluation failed");
     } finally {
       setIsLoading(false);
     }
-  }, [telemetryData]);
+  }, [telemetryData, isOnline]);
 
   useEffect(() => {
     runEvaluation();
@@ -69,15 +75,15 @@ export function useWaterAi(
     return () => clearInterval(interval);
   }, [runEvaluation, pollIntervalMs]);
 
-  const riskScore: number = analysisResult?.compositeRiskScore ?? 5;
-  const riskLevel: RiskLevel = analysisResult?.compositeRiskLevel ?? "LOW";
-  const isAnomaly: boolean = analysisResult?.isAnomaly ?? false;
-  const activeAnomalies: DetectedAnomaly[] = analysisResult?.anomalies ?? [];
-  const baseline: BaselineProfile | null = analysisResult?.baseline ?? null;
+  const riskScore: number = isOnline ? (analysisResult?.compositeRiskScore ?? 0) : 0;
+  const riskLevel: RiskLevel = isOnline ? (analysisResult?.compositeRiskLevel ?? "LOW") : "LOW";
+  const isAnomaly: boolean = isOnline ? (analysisResult?.isAnomaly ?? false) : false;
+  const activeAnomalies: DetectedAnomaly[] = isOnline ? (analysisResult?.anomalies ?? []) : [];
+  const baseline: BaselineProfile | null = isOnline ? (analysisResult?.baseline ?? null) : null;
 
-  // Convert active anomalies into genuine live Alert objects
+  // Convert active anomalies into genuine live Alert objects (STRICTLY empty when offline)
   const liveAlerts: Alert[] = useMemo(() => {
-    if (!activeAnomalies || activeAnomalies.length === 0 || !telemetryData?.latest) {
+    if (!isOnline || !activeAnomalies || activeAnomalies.length === 0 || !telemetryData?.latest) {
       return [];
     }
     const latest = telemetryData.latest;
@@ -126,30 +132,30 @@ export function useWaterAi(
         isLiveAlert: true,
       };
     });
-  }, [activeAnomalies, telemetryData]);
+  }, [activeAnomalies, telemetryData, isOnline]);
 
   // Dynamically generate genuine Live AI Insight based on live telemetry & anomaly engine state
   const liveInsight: Insight | null = useMemo(() => {
-    if (!analysisResult || !telemetryData?.latest) {
-      return null;
-    }
-    const isOffline = !isOnline;
-    const currentFlow = analysisResult.latestFlowRateLpm;
-    const isZeroFlow = currentFlow < 0.05;
-
-    if (isOffline) {
+    if (!isOnline) {
       return {
         id: "ins_live_offline",
         title: "Node Heartbeat Standby",
         buildingName: "Hostel Block A",
         locationName: "Ground Floor Restroom",
         avoidableVolumeLiters: 0,
-        recommendedAction: "Verify ESP32 power supply and local Wi-Fi connectivity to resume live stream.",
+        recommendedAction: "Physical node DEV_ESP32_001 has had no heartbeat in >120s. Telemetry stream is in standby. Connect hardware to resume live intelligence.",
         severity: "info",
         alertId: "alt_standby",
         createdAt: new Date().toISOString(),
       };
     }
+
+    if (!analysisResult || !telemetryData?.latest) {
+      return null;
+    }
+
+    const currentFlow = analysisResult.latestFlowRateLpm;
+    const isZeroFlow = currentFlow < 0.05;
 
     if (isAnomaly && activeAnomalies.length > 0) {
       const primary = activeAnomalies[0];

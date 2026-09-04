@@ -101,13 +101,14 @@ export async function GET() {
     // 4. Calculate Online Status & Freshness (Strict 120s Heartbeat Rule)
     let isOnline = false;
     let isLiveStreaming = false;
+    let diffSeconds = 999999;
 
     const latestActivityTimestamp = latest?.timestamp || latest?.received_at || resolvedDevice?.last_seen_at;
 
     if (latestActivityTimestamp) {
       const lastSeenMs = new Date(latestActivityTimestamp).getTime();
       const nowMs = Date.now();
-      const diffSeconds = Math.max(0, Math.floor((nowMs - lastSeenMs) / 1000));
+      diffSeconds = Math.max(0, Math.floor((nowMs - lastSeenMs) / 1000));
       
       // Device is marked online STRICTLY if telemetry was seen within the last 120 seconds
       isOnline = diffSeconds <= 120;
@@ -120,13 +121,19 @@ export async function GET() {
         data: {
           device: resolvedDevice || null,
           sensor: sensorData || null,
-          latest: latest || null,
+          // latest represents ACTIVE live telemetry reading (null when offline/stale)
+          latest: isOnline ? latest : null,
+          // last_recorded is the newest historical record persisted in DB (for audit/stale reference)
+          last_recorded: latest || null,
           history: historyList || [],
           meta: {
             total_records_returned: historyList ? historyList.length : 0,
             total_records_count: typeof totalRecordCount === "number" ? totalRecordCount : (historyList ? historyList.length : 0),
             is_online: isOnline,
+            is_stale: !isOnline,
             is_live_streaming: isLiveStreaming,
+            diff_seconds: diffSeconds,
+            last_seen_at: latestActivityTimestamp || null,
             fetched_at: new Date().toISOString(),
           },
         },

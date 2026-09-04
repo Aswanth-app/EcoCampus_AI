@@ -39,12 +39,16 @@ export interface LiveTelemetryResponse {
   device: DeviceRecord | null;
   sensor: SensorRecord | null;
   latest: TelemetryRecord | null;
+  last_recorded?: TelemetryRecord | null;
   history: TelemetryRecord[];
   meta: {
     total_records_returned: number;
     total_records_count?: number;
     is_online: boolean;
+    is_stale?: boolean;
     is_live_streaming: boolean;
+    diff_seconds?: number;
+    last_seen_at?: string | null;
     fetched_at: string;
   };
 }
@@ -195,22 +199,30 @@ export function useTelemetry(pollIntervalMs: number = 4000) {
     };
   }, [fetchLiveTelemetry]);
 
-  // Derived metrics with cumulative consistency safeguards
-  const latest = data?.latest;
-  const device = data?.device;
-  const flowRateLpm = latest ? Number(latest.flow_rate_lpm) || 0 : 0;
+  // Derived metrics with strict freshness separation
+  const isOnline = data?.meta?.is_online ?? false;
+  const isStale = data?.meta?.is_stale ?? (!isOnline);
+  const diffSeconds = data?.meta?.diff_seconds ?? 999999;
   
-  // Cumulative volume and pulses never decrease
-  const rawVolume = latest ? Number(latest.total_volume_liters) || 0 : 0;
-  const totalVolumeLiters = Math.max(rawVolume, maxVolumeRef.current);
+  const latest = isOnline ? data?.latest : null;
+  const lastRecorded = data?.last_recorded || (data?.history && data.history.length > 0 ? data.history[0] : null);
+  const device = data?.device;
 
-  const rawPulses = latest ? Number(latest.pulse_count) || 0 : 0;
-  const pulseCount = Math.max(rawPulses, maxPulsesRef.current);
+  // Live instantaneous values (strictly null when offline/stale)
+  const liveFlowRateLpm = latest ? Number(latest.flow_rate_lpm) || 0 : null;
+  const liveTotalVolumeLiters = latest ? Number(latest.total_volume_liters) || 0 : null;
+  const livePulseCount = latest ? Number(latest.pulse_count) || 0 : null;
+
+  // Last recorded historical values (for honest historical reference)
+  const lastRecordedFlowLpm = lastRecorded ? Number(lastRecorded.flow_rate_lpm) || 0 : 0;
+  const lastRecordedVolumeLiters = lastRecorded ? Number(lastRecorded.total_volume_liters) || 0 : 0;
+  const lastRecordedPulses = lastRecorded ? Number(lastRecorded.pulse_count) || 0 : 0;
+  const lastRecordedTimestamp = lastRecorded?.timestamp || null;
 
   const recordId = latest?.id ?? null;
   const latestTimestamp = latest?.timestamp ?? null;
-  const isOnline = data?.meta?.is_online ?? false;
-  const totalRecordsCount = data?.meta?.total_records_count ?? data?.history?.length ?? (latest ? 1 : 0);
+  const lastSeenAt = data?.meta?.last_seen_at || device?.last_seen_at || lastRecordedTimestamp || null;
+  const totalRecordsCount = data?.meta?.total_records_count ?? data?.history?.length ?? (lastRecorded ? 1 : 0);
 
   return {
     data,
@@ -218,19 +230,25 @@ export function useTelemetry(pollIntervalMs: number = 4000) {
     error,
     lastSync,
     isLiveReceiving,
-    hasData: !!latest,
+    hasData: !!lastRecorded,
     metrics: {
-      flowRateLpm,
-      totalVolumeLiters,
-      pulseCount,
+      flowRateLpm: liveFlowRateLpm,
+      totalVolumeLiters: liveTotalVolumeLiters,
+      pulseCount: livePulseCount,
+      lastRecordedFlowLpm,
+      lastRecordedVolumeLiters,
+      lastRecordedPulses,
+      lastRecordedTimestamp,
       recordId,
       latestTimestamp,
+      lastSeenAt,
       isOnline,
+      isStale,
+      diffSeconds,
       totalRecordsCount,
       deviceUid: device?.device_uid || "DEV_ESP32_001",
       sensorType: data?.sensor?.sensor_type || "YF-S201",
       firmwareVersion: device?.firmware_version || "v2.4.1",
-      lastSeenAt: device?.last_seen_at || null,
     },
     refetch: () => fetchLiveTelemetry(false),
   };

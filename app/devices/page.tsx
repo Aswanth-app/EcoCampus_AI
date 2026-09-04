@@ -95,9 +95,13 @@ export default function DevicesPage() {
       render: (dev) => (
         <div>
           <Badge variant="normal">Water ({dev.deviceUid === "DEV_ESP32_001" ? metrics.sensorType : "YF-S201"})</Badge>
-          {dev.deviceUid === "DEV_ESP32_001" && metrics.totalVolumeLiters > 0 && (
+          {dev.deviceUid === "DEV_ESP32_001" && (
             <p className="text-[10px] font-mono text-emerald-700 mt-0.5">
-              {metrics.totalVolumeLiters.toFixed(2)} L ({metrics.pulseCount} pulses)
+              {metrics.isOnline && metrics.totalVolumeLiters !== null
+                ? `${metrics.totalVolumeLiters.toFixed(2)} L (${metrics.pulseCount} pulses)`
+                : metrics.lastRecordedVolumeLiters > 0
+                ? `Last recorded: ${metrics.lastRecordedVolumeLiters.toFixed(2)} L (Offline)`
+                : "No telemetry recorded"}
             </p>
           )}
         </div>
@@ -173,6 +177,9 @@ export default function DevicesPage() {
         flowRateLpm={metrics.flowRateLpm}
         totalVolumeLiters={metrics.totalVolumeLiters}
         pulseCount={metrics.pulseCount}
+        lastRecordedFlowLpm={metrics.lastRecordedFlowLpm}
+        lastRecordedVolumeLiters={metrics.lastRecordedVolumeLiters}
+        lastRecordedPulses={metrics.lastRecordedPulses}
         recordId={metrics.recordId}
         timestamp={metrics.latestTimestamp}
         lastSeenAt={metrics.lastSeenAt}

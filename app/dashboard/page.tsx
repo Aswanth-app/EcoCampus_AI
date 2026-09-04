@@ -36,14 +36,14 @@ export default function DashboardPage() {
 
   const mainCampus = MOCK_CAMPUSES[0];
 
-  // Dynamically map buildings: Bind Hostel Block A to live ESP32 node metrics
+  // Dynamically map buildings: Bind Hostel Block A to physical ESP32 node
   const mappedBuildings: Building[] = MOCK_BUILDINGS.map((bld) => {
     if (bld.id === "bld_hostel_a") {
       return {
         ...bld,
-        currentFlowLpm: metrics.flowRateLpm,
-        waterUsageTodayLiters: metrics.totalVolumeLiters > 0 ? metrics.totalVolumeLiters : bld.waterUsageTodayLiters,
-        status: isAnomaly ? "critical" : isOnline ? "normal" : "offline",
+        currentFlowLpm: isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm : 0,
+        waterUsageTodayLiters: metrics.lastRecordedVolumeLiters > 0 ? metrics.lastRecordedVolumeLiters : bld.waterUsageTodayLiters,
+        status: isOnline ? (isAnomaly ? "critical" : "normal") : "offline",
         devicesOnlineCount: isOnline ? 1 : 0,
         devicesCount: 1,
         activeAlertsCount: liveAlerts.length,
@@ -104,7 +104,9 @@ export default function DashboardPage() {
             )}
           </div>
           <p className="text-sm text-gray-500">
-            Real-time telemetry stream from physical <strong className="font-medium text-gray-800">{metrics.deviceUid}</strong> on Main Campus.
+            {isOnline
+              ? `Real-time telemetry stream from physical ${metrics.deviceUid} on Main Campus.`
+              : `Physical hardware ${metrics.deviceUid} is currently in standby (>120s without heartbeat).`}
           </p>
         </div>
 
@@ -125,6 +127,9 @@ export default function DashboardPage() {
         flowRateLpm={metrics.flowRateLpm}
         totalVolumeLiters={metrics.totalVolumeLiters}
         pulseCount={metrics.pulseCount}
+        lastRecordedFlowLpm={metrics.lastRecordedFlowLpm}
+        lastRecordedVolumeLiters={metrics.lastRecordedVolumeLiters}
+        lastRecordedPulses={metrics.lastRecordedPulses}
         recordId={metrics.recordId}
         timestamp={metrics.latestTimestamp}
         lastSeenAt={metrics.lastSeenAt}
@@ -139,25 +144,57 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
           title="Total Measured Volume"
-          value={metrics.totalVolumeLiters > 0 ? metrics.totalVolumeLiters.toFixed(2) : "0.00"}
-          unit="Liters"
-          trend={{ value: `${metrics.pulseCount.toLocaleString()} pulses`, direction: "up", label: "Hall sensor", isPositive: true }}
+          value={
+            isOnline && metrics.totalVolumeLiters !== null
+              ? metrics.totalVolumeLiters.toFixed(2)
+              : metrics.lastRecordedVolumeLiters > 0
+              ? metrics.lastRecordedVolumeLiters.toFixed(2)
+              : "--"
+          }
+          unit={isOnline ? "Liters" : "L (Stale)"}
+          trend={{
+            value: isOnline && metrics.pulseCount !== null
+              ? `${metrics.pulseCount.toLocaleString()} pulses`
+              : metrics.lastRecordedPulses > 0
+              ? `${metrics.lastRecordedPulses.toLocaleString()} pulses`
+              : "0 pulses",
+            direction: isOnline ? "up" : "neutral",
+            label: isOnline ? "Hall sensor" : "Last recorded",
+            isPositive: isOnline,
+          }}
           icon={<Droplets className="w-5 h-5 text-emerald-600" />}
-          supportingText={metrics.recordId ? `Latest DB Record #${metrics.recordId}` : "Supabase Ingestion Active"}
+          supportingText={
+            isOnline
+              ? (metrics.recordId ? `Live DB Record #${metrics.recordId}` : "Live Streaming Active")
+              : (metrics.lastRecordedTimestamp ? `Last recorded: ${formatDate(metrics.lastRecordedTimestamp)}` : "Awaiting telemetry")
+          }
         />
 
         <KpiCard
           title="Current Flow Rate"
-          value={metrics.flowRateLpm.toFixed(2)}
-          unit="L/min"
-          trend={{
-            value: metrics.flowRateLpm > 0 ? "Active Flowing" : "Quiescent (Zero Flow)",
-            direction: metrics.flowRateLpm > 0 ? "up" : "neutral",
-            label: "YF-S201",
-            isPositive: true,
-          }}
+          value={isOnline && metrics.flowRateLpm !== null ? metrics.flowRateLpm.toFixed(2) : "--"}
+          unit={isOnline ? "L/min" : "Offline"}
+          trend={
+            isOnline
+              ? {
+                  value: (metrics.flowRateLpm ?? 0) > 0 ? "Active Flowing" : "Quiescent (Zero Flow)",
+                  direction: (metrics.flowRateLpm ?? 0) > 0 ? "up" : "neutral",
+                  label: "YF-S201",
+                  isPositive: true,
+                }
+              : {
+                  value: "Standby (>120s)",
+                  direction: "neutral",
+                  label: "Node Offline",
+                  isPositive: false,
+                }
+          }
           icon={<Activity className="w-5 h-5 text-teal-600" />}
-          supportingText="Real-time 5s interval sample"
+          supportingText={
+            isOnline
+              ? "Real-time 5s interval sample"
+              : (metrics.lastRecordedTimestamp ? `Last recorded flow: ${metrics.lastRecordedFlowLpm.toFixed(2)} L/min` : "No recent telemetry")
+          }
         />
 
         <KpiCard
@@ -170,11 +207,11 @@ export default function DashboardPage() {
                 {liveAlerts.length} Critical
               </Badge>
             ) : (
-              <Badge variant="normal">Normal Baseline</Badge>
+              <Badge variant="normal">{isOnline ? "Normal Baseline" : "Engine Standby"}</Badge>
             )
           }
           icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
-          supportingText="False-positive metric unavailable"
+          supportingText={isOnline ? "Live AI Rule Evaluation" : "No live alerts (Node Offline)"}
         />
 
         <KpiCard
@@ -246,7 +283,7 @@ export default function DashboardPage() {
                     <span className="w-2.5 h-2.5 rounded-xs bg-[#0B6B4F]" /> Measured Flow (L/min)
                   </span>
                   <span className="flex items-center gap-1.5 font-mono text-[11px]">
-                    Cumulative Stream: {metrics.totalVolumeLiters.toFixed(2)} Liters
+                    Cumulative Stream: {metrics.isOnline && metrics.totalVolumeLiters !== null ? `${metrics.totalVolumeLiters.toFixed(2)} Liters` : metrics.lastRecordedVolumeLiters > 0 ? `${metrics.lastRecordedVolumeLiters.toFixed(2)} L (Last Recorded)` : "Standby"}
                   </span>
                 </div>
               </>
