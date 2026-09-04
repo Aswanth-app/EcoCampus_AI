@@ -128,7 +128,7 @@ export default function LocationsPage() {
         isOpen={showAddLocationModal}
         onClose={() => setShowAddLocationModal(false)}
         title="Add Monitored Location"
-        subtitle="Hierarchy: Organization $\rightarrow$ Campus $\rightarrow$ Building $\rightarrow$ Location"
+        subtitle="Hierarchy: Organization → Campus → Building → Location"
         footer={
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => setShowAddLocationModal(false)}>

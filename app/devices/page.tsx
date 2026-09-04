@@ -179,6 +179,7 @@ export default function DevicesPage() {
         isOnline={metrics.isOnline}
         isLiveReceiving={isLiveReceiving}
         isLoading={isLoading}
+        totalRecordsCount={metrics.totalRecordsCount}
         onRefresh={refetch}
       />
 
@@ -209,7 +210,7 @@ export default function DevicesPage() {
             <div className="flex items-center gap-2">
               {wizardStep < 4 ? (
                 <Button variant="primary" size="sm" onClick={() => setWizardStep((prev) => (prev + 1) as any)}>
-                  Continue $\rightarrow$
+                  Continue
                 </Button>
               ) : (
                 <Button

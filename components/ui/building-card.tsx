@@ -20,7 +20,18 @@ export const BuildingCard: React.FC<BuildingCardProps> = ({ building, onSelect }
               <Building2 className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-base font-semibold text-gray-900">{building.name}</h4>
+              <div className="flex items-center gap-2">
+                <h4 className="text-base font-semibold text-gray-900">{building.name}</h4>
+                {building.isLiveNode ? (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    LIVE NODE (ESP32)
+                  </span>
+                ) : (
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium bg-gray-100 text-gray-600 border border-gray-200">
+                    {building.simulationLabel || "Simulated Facility"}
+                  </span>
+                )}
+              </div>
               <span className="text-xs text-gray-500 font-mono">{building.code} • {building.campusName}</span>
             </div>
           </div>

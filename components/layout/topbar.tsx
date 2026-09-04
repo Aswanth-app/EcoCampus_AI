@@ -93,7 +93,7 @@ export const Topbar: React.FC<TopbarProps> = ({ onMobileToggle }) => {
 
               <div className="mt-3 pt-2 border-t border-gray-100 text-center">
                 <a href="/alerts" className="text-xs font-semibold text-[#0B6B4F] hover:underline">
-                  View All Alerts $\rightarrow$
+                  View All Alerts
                 </a>
               </div>
             </div>

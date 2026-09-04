@@ -31,6 +31,15 @@ export const AlertRow: React.FC<AlertRowProps> = ({ alert, onViewDetails }) => {
         <div>
           <div className="flex items-center gap-2 flex-wrap">
             <h4 className="text-sm font-semibold text-gray-900">{alert.title}</h4>
+            {alert.isLiveAlert ? (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-sm font-bold bg-red-100 text-red-800 border border-red-300 animate-pulse">
+                LIVE ANOMALY
+              </span>
+            ) : alert.isHistoricalDemo ? (
+              <span className="text-[9px] px-1.5 py-0.5 rounded-sm font-medium bg-amber-100 text-amber-800 border border-amber-300">
+                HISTORICAL ARCHIVE (DEMO)
+              </span>
+            ) : null}
             <span className="text-xs text-gray-400">•</span>
             <span className="text-xs font-mono text-gray-500">{alert.deviceUid}</span>
           </div>

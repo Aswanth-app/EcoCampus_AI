@@ -35,7 +35,7 @@ export default function InsightsPage() {
 
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => (window.location.href = "/alerts")}>
-            View Active Alerts $\rightarrow$
+            View Active Alerts
           </Button>
         </div>
       </div>

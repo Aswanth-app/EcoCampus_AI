@@ -42,19 +42,25 @@ export interface LiveTelemetryResponse {
   history: TelemetryRecord[];
   meta: {
     total_records_returned: number;
+    total_records_count?: number;
     is_online: boolean;
     is_live_streaming: boolean;
     fetched_at: string;
   };
 }
 
-export function useTelemetry(pollIntervalMs: number = 5000) {
+export function useTelemetry(pollIntervalMs: number = 4000) {
   const [data, setData] = useState<LiveTelemetryResponse | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lastSync, setLastSync] = useState<Date | null>(null);
   const [isLiveReceiving, setIsLiveReceiving] = useState<boolean>(false);
+
+  // Cumulative safeguards: ensure cumulative volume and pulses never decrease
+  const maxVolumeRef = useRef<number>(0);
+  const maxPulsesRef = useRef<number>(0);
   const prevRecordIdRef = useRef<number | null>(null);
+  const isMountedRef = useRef<boolean>(true);
 
   const fetchLiveTelemetry = useCallback(async (isBackground: boolean = false) => {
     try {
@@ -72,19 +78,40 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
       }
 
       const json = await res.json();
+      if (!isMountedRef.current) return;
+
       if (json.success && json.data) {
         const nextData = json.data as LiveTelemetryResponse;
         
-        // Detect new record arrival
+        // Detect new record arrival for live pulse indicator
         if (
           nextData.latest?.id &&
           prevRecordIdRef.current !== null &&
           nextData.latest.id !== prevRecordIdRef.current
         ) {
           setIsLiveReceiving(true);
-          setTimeout(() => setIsLiveReceiving(false), 4000);
+          setTimeout(() => {
+            if (isMountedRef.current) {
+              setIsLiveReceiving(false);
+            }
+          }, 3500);
         }
-        prevRecordIdRef.current = nextData.latest?.id || null;
+        if (nextData.latest?.id) {
+          prevRecordIdRef.current = nextData.latest.id;
+        }
+
+        // Maintain monotonic cumulative volume and pulses
+        if (nextData.latest) {
+          const incomingVolume = Number(nextData.latest.total_volume_liters) || 0;
+          const incomingPulses = Number(nextData.latest.pulse_count) || 0;
+
+          if (incomingVolume >= maxVolumeRef.current) {
+            maxVolumeRef.current = incomingVolume;
+          }
+          if (incomingPulses >= maxPulsesRef.current) {
+            maxPulsesRef.current = incomingPulses;
+          }
+        }
 
         setData(nextData);
         setLastSync(new Date());
@@ -94,24 +121,32 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
       }
     } catch (err: any) {
       console.warn("useTelemetry fetch warning:", err?.message);
-      setError(err?.message || "Failed to load live telemetry");
+      if (isMountedRef.current) {
+        setError(err?.message || "Failed to load live telemetry");
+      }
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
     }
-  }, [data]);
+  }, []);
 
-  // Initial fetch and polling loop
+  // Initial fetch and single safe polling interval
   useEffect(() => {
+    isMountedRef.current = true;
     fetchLiveTelemetry(false);
 
     const interval = setInterval(() => {
       fetchLiveTelemetry(true);
     }, pollIntervalMs);
 
-    return () => clearInterval(interval);
+    return () => {
+      isMountedRef.current = false;
+      clearInterval(interval);
+    };
   }, [fetchLiveTelemetry, pollIntervalMs]);
 
-  // Supabase Realtime channel subscription (instant trigger on insert)
+  // Supabase Realtime channel subscription
   useEffect(() => {
     if (!isSupabaseConfigured) return;
 
@@ -125,8 +160,10 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
           table: "telemetry",
         },
         () => {
-          setIsLiveReceiving(true);
-          fetchLiveTelemetry(true);
+          if (isMountedRef.current) {
+            setIsLiveReceiving(true);
+            fetchLiveTelemetry(true);
+          }
         }
       )
       .on(
@@ -137,7 +174,9 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
           table: "devices",
         },
         () => {
-          fetchLiveTelemetry(true);
+          if (isMountedRef.current) {
+            fetchLiveTelemetry(true);
+          }
         }
       )
       .subscribe();
@@ -147,15 +186,22 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
     };
   }, [fetchLiveTelemetry]);
 
-  // Derived metrics
+  // Derived metrics with cumulative consistency safeguards
   const latest = data?.latest;
   const device = data?.device;
-  const flowRateLpm = latest ? Number(latest.flow_rate_lpm) : 0;
-  const totalVolumeLiters = latest ? Number(latest.total_volume_liters) : 0;
-  const pulseCount = latest ? Number(latest.pulse_count) : 0;
+  const flowRateLpm = latest ? Number(latest.flow_rate_lpm) || 0 : 0;
+  
+  // Cumulative volume and pulses never decrease
+  const rawVolume = latest ? Number(latest.total_volume_liters) || 0 : 0;
+  const totalVolumeLiters = Math.max(rawVolume, maxVolumeRef.current);
+
+  const rawPulses = latest ? Number(latest.pulse_count) || 0 : 0;
+  const pulseCount = Math.max(rawPulses, maxPulsesRef.current);
+
   const recordId = latest?.id ?? null;
   const latestTimestamp = latest?.timestamp ?? null;
   const isOnline = data?.meta?.is_online ?? false;
+  const totalRecordsCount = data?.meta?.total_records_count ?? data?.history?.length ?? (latest ? 1 : 0);
 
   return {
     data,
@@ -163,6 +209,7 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
     error,
     lastSync,
     isLiveReceiving,
+    hasData: !!latest,
     metrics: {
       flowRateLpm,
       totalVolumeLiters,
@@ -170,6 +217,7 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
       recordId,
       latestTimestamp,
       isOnline,
+      totalRecordsCount,
       deviceUid: device?.device_uid || "DEV_ESP32_001",
       sensorType: data?.sensor?.sensor_type || "YF-S201",
       firmwareVersion: device?.firmware_version || "v2.4.1",
@@ -178,3 +226,4 @@ export function useTelemetry(pollIntervalMs: number = 5000) {
     refetch: () => fetchLiveTelemetry(false),
   };
 }
+

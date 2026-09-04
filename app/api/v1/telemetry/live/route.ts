@@ -23,20 +23,33 @@ export async function GET() {
     const { data: device, error: devErr } = await dbClient
       .from("devices")
       .select("id, device_uid, device_type, status, firmware_version, last_seen_at, created_at, location_id")
-      .eq("device_uid", "DEV_ESP32_001")
+      .or("device_uid.eq.DEV_ESP32_001,device_uid.eq.DEV-ESP32-001")
+      .order("last_seen_at", { ascending: false, nullsFirst: false })
+      .limit(1)
       .maybeSingle();
 
     if (devErr) {
       console.error("Live telemetry device query error:", devErr.message);
     }
 
+    let resolvedDevice = device;
+    if (!resolvedDevice) {
+      const { data: anyDevice } = await dbClient
+        .from("devices")
+        .select("id, device_uid, device_type, status, firmware_version, last_seen_at, created_at, location_id")
+        .order("last_seen_at", { ascending: false, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
+      resolvedDevice = anyDevice;
+    }
+
     // 2. Fetch Sensor attached to device
     let sensorData = null;
-    if (device?.id) {
+    if (resolvedDevice?.id) {
       const { data: sensor, error: senErr } = await dbClient
         .from("sensors")
         .select("id, device_id, sensor_type, resource_type, unit, calibration_factor, status")
-        .eq("device_id", device.id)
+        .eq("device_id", resolvedDevice.id)
         .maybeSingle();
 
       if (!senErr && sensor) {
@@ -44,17 +57,31 @@ export async function GET() {
       }
     }
 
-    // 3. Fetch Recent Telemetry History (last 30 records)
+    if (!sensorData) {
+      const { data: anySensor } = await dbClient
+        .from("sensors")
+        .select("id, device_id, sensor_type, resource_type, unit, calibration_factor, status")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (anySensor) {
+        sensorData = anySensor;
+      }
+    }
+
+    // 3. Fetch Recent Telemetry History (ordered by timestamp DESC, id DESC)
     const telemetryQuery = sensorData?.id
       ? dbClient
           .from("telemetry")
           .select("id, sensor_id, flow_rate_lpm, total_volume_liters, pulse_count, timestamp, received_at, status")
           .eq("sensor_id", sensorData.id)
+          .order("timestamp", { ascending: false })
           .order("id", { ascending: false })
           .limit(30)
       : dbClient
           .from("telemetry")
           .select("id, sensor_id, flow_rate_lpm, total_volume_liters, pulse_count, timestamp, received_at, status")
+          .order("timestamp", { ascending: false })
           .order("id", { ascending: false })
           .limit(30);
 
@@ -64,19 +91,26 @@ export async function GET() {
       console.error("Live telemetry history query error:", telErr.message);
     }
 
+    // Fetch total count of persisted telemetry records
+    const { count: totalRecordCount } = await dbClient
+      .from("telemetry")
+      .select("*", { count: "exact", head: true });
+
     const latest = historyList && historyList.length > 0 ? historyList[0] : null;
 
-    // 4. Calculate Online Status & Freshness
+    // 4. Calculate Online Status & Freshness (Strict 120s Heartbeat Rule)
     let isOnline = false;
     let isLiveStreaming = false;
 
-    if (device?.last_seen_at) {
-      const lastSeenMs = new Date(device.last_seen_at).getTime();
+    const latestActivityTimestamp = latest?.timestamp || latest?.received_at || resolvedDevice?.last_seen_at;
+
+    if (latestActivityTimestamp) {
+      const lastSeenMs = new Date(latestActivityTimestamp).getTime();
       const nowMs = Date.now();
       const diffSeconds = Math.max(0, Math.floor((nowMs - lastSeenMs) / 1000));
       
-      // Device is marked online if status is 'online' or seen within last 2 minutes
-      isOnline = device.status === "online" || diffSeconds <= 120;
+      // Device is marked online STRICTLY if telemetry was seen within the last 120 seconds
+      isOnline = diffSeconds <= 120;
       isLiveStreaming = diffSeconds <= 30;
     }
 
@@ -84,12 +118,13 @@ export async function GET() {
       {
         success: true,
         data: {
-          device: device || null,
+          device: resolvedDevice || null,
           sensor: sensorData || null,
           latest: latest || null,
           history: historyList || [],
           meta: {
             total_records_returned: historyList ? historyList.length : 0,
+            total_records_count: typeof totalRecordCount === "number" ? totalRecordCount : (historyList ? historyList.length : 0),
             is_online: isOnline,
             is_live_streaming: isLiveStreaming,
             fetched_at: new Date().toISOString(),

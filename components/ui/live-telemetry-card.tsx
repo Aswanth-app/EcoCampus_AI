@@ -1,8 +1,7 @@
 "use client";
 
 import React from "react";
-import { Activity, Droplets, Cpu, Radio, Database, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
-import { Badge } from "./badge";
+import { Activity, Droplets, Cpu, Radio, Database, CheckCircle2, AlertCircle, RefreshCw, Loader2 } from "lucide-react";
 import { formatDate } from "@/lib/utils";
 
 export interface LiveTelemetryCardProps {
@@ -17,6 +16,7 @@ export interface LiveTelemetryCardProps {
   isOnline: boolean;
   isLiveReceiving?: boolean;
   isLoading?: boolean;
+  totalRecordsCount?: number;
   onRefresh?: () => void;
 }
 
@@ -32,6 +32,7 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
   isOnline,
   isLiveReceiving = false,
   isLoading = false,
+  totalRecordsCount,
   onRefresh,
 }) => {
   return (
@@ -54,7 +55,7 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
               </span>
             </div>
             <p className="text-xs text-emerald-200/70 mt-0.5">
-              Physical ESP32 Node • Hall-Effect Flow Transducer
+              Physical ESP32 Node • Hall-Effect Water Flow Sensor
             </p>
           </div>
         </div>
@@ -69,7 +70,7 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
           ) : isOnline ? (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 text-xs font-semibold border border-emerald-500/40">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-              <span>LIVE • STREAMING</span>
+              <span>LIVE STREAMING</span>
             </div>
           ) : (
             <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-semibold border border-amber-500/40">
@@ -95,7 +96,7 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
 
       {/* Primary Metrics Grid */}
       <div className="relative z-10 grid grid-cols-2 sm:grid-cols-4 gap-4 pt-5">
-        {/* Metric 1: Flow Rate */}
+        {/* Metric 1: Instantaneous Flow */}
         <div className="bg-white/5 rounded-xl p-3.5 border border-white/10 backdrop-blur-xs">
           <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
             <Activity className="w-3.5 h-3.5 text-emerald-400" />
@@ -103,14 +104,18 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-bold font-mono text-white tracking-tight">
-              {flowRateLpm.toFixed(2)}
+              {isLoading && recordId === null ? (
+                <Loader2 className="w-5 h-5 animate-spin text-emerald-400 inline" />
+              ) : (
+                flowRateLpm.toFixed(2)
+              )}
             </span>
             <span className="text-xs text-emerald-400 font-medium">L/min</span>
           </div>
           <p className="text-[10px] text-gray-400 mt-1">Calibrated at 7.5 Hz/LPM</p>
         </div>
 
-        {/* Metric 2: Accumulated Volume */}
+        {/* Metric 2: Total Volume */}
         <div className="bg-white/5 rounded-xl p-3.5 border border-white/10 backdrop-blur-xs">
           <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
             <Droplets className="w-3.5 h-3.5 text-teal-400" />
@@ -118,29 +123,37 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-bold font-mono text-white tracking-tight">
-              {totalVolumeLiters.toFixed(2)}
+              {isLoading && recordId === null ? (
+                <Loader2 className="w-5 h-5 animate-spin text-teal-400 inline" />
+              ) : (
+                totalVolumeLiters.toFixed(2)
+              )}
             </span>
             <span className="text-xs text-teal-400 font-medium">Liters</span>
           </div>
-          <p className="text-[10px] text-gray-400 mt-1">Physical water measured</p>
+          <p className="text-[10px] text-gray-400 mt-1">Total Measured Volume</p>
         </div>
 
-        {/* Metric 3: Hall Effect Pulse Count */}
+        {/* Metric 3: Total Pulses */}
         <div className="bg-white/5 rounded-xl p-3.5 border border-white/10 backdrop-blur-xs">
           <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
             <Radio className="w-3.5 h-3.5 text-cyan-400" />
-            <span>Hardware Pulses</span>
+            <span>Total Pulses</span>
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-2xl font-bold font-mono text-white tracking-tight">
-              {pulseCount.toLocaleString()}
+              {isLoading && recordId === null ? (
+                <Loader2 className="w-5 h-5 animate-spin text-cyan-400 inline" />
+              ) : (
+                pulseCount.toLocaleString()
+              )}
             </span>
             <span className="text-xs text-cyan-400 font-medium">pulses</span>
           </div>
           <p className="text-[10px] text-gray-400 mt-1">450 pulses ≈ 1 Liter</p>
         </div>
 
-        {/* Metric 4: Supabase Record & Timestamp */}
+        {/* Metric 4: Supabase DB Sync */}
         <div className="bg-white/5 rounded-xl p-3.5 border border-white/10 backdrop-blur-xs">
           <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-1">
             <Database className="w-3.5 h-3.5 text-emerald-400" />
@@ -148,12 +161,22 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-lg font-bold font-mono text-emerald-300">
-              {recordId ? `#${recordId}` : "Waiting"}
+              {isLoading && recordId === null
+                ? "Connecting..."
+                : recordId
+                ? `#${recordId}`
+                : isOnline
+                ? "Connected"
+                : "Standby"}
             </span>
-            <span className="text-[11px] text-gray-400">stored</span>
+            {recordId && (
+              <span className="text-[11px] text-gray-400 font-sans">
+                {totalRecordsCount ? `(${totalRecordsCount} records)` : "stored"}
+              </span>
+            )}
           </div>
           <p className="text-[10px] text-gray-400 mt-1 truncate">
-            {timestamp ? formatDate(timestamp) : "Awaiting telemetry"}
+            {timestamp ? `Last Updated: ${formatDate(timestamp)}` : "Awaiting telemetry"}
           </p>
         </div>
       </div>
@@ -162,12 +185,13 @@ export const LiveTelemetryCard: React.FC<LiveTelemetryCardProps> = ({
       <div className="relative z-10 flex flex-wrap items-center justify-between text-[11px] text-emerald-200/80 mt-4 pt-3 border-t border-emerald-500/15 gap-2">
         <span className="flex items-center gap-1.5">
           <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Pipeline: Physical ESP32 $\rightarrow$ Wi-Fi $\rightarrow$ Next.js API $\rightarrow$ Supabase $\rightarrow$ Dashboard</span>
+          <span>Pipeline: Physical ESP32 → Wi-Fi → Next.js API → Supabase → Dashboard</span>
         </span>
         <span className="font-mono text-gray-400">
-          Last Heartbeat: {lastSeenAt ? formatDate(lastSeenAt) : "N/A"}
+          Last Updated: {timestamp ? formatDate(timestamp) : (lastSeenAt ? formatDate(lastSeenAt) : "N/A")}
         </span>
       </div>
     </div>
   );
 };
+

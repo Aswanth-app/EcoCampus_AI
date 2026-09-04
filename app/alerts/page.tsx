@@ -9,22 +9,29 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { MOCK_ALERTS } from "@/data/mock-data";
-import { Alert, AlertStatus, AlertSeverity } from "@/types";
-import { AlertTriangle, AlertOctagon, Info, CheckCircle2, ShieldAlert } from "lucide-react";
-import { formatDate, formatFlowRate } from "@/lib/utils";
+import { Alert, AlertStatus } from "@/types";
+import { useWaterAi } from "@/lib/use-water-ai";
+import { AlertTriangle, AlertOctagon, Info, CheckCircle2, ShieldAlert, Radio } from "lucide-react";
+import { formatFlowRate } from "@/lib/utils";
 
 export default function AlertsPage() {
-  const [alerts, setAlerts] = useState<Alert[]>(MOCK_ALERTS);
+  const { liveAlerts, isOnline, riskLevel } = useWaterAi(6000);
+  const [activeTab, setActiveTab] = useState<"live" | "archive">("live");
+  const [historicalAlerts, setHistoricalAlerts] = useState<Alert[]>(
+    MOCK_ALERTS.map((a) => ({ ...a, isHistoricalDemo: true }))
+  );
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
 
-  const filteredAlerts = alerts.filter((a) => {
-    if (filterStatus === "all") return true;
-    return a.status === filterStatus;
-  });
+  const displayedAlerts = activeTab === "live"
+    ? liveAlerts
+    : historicalAlerts.filter((a) => {
+        if (filterStatus === "all") return true;
+        return a.status === filterStatus;
+      });
 
   const handleUpdateStatus = (alertId: string, newStatus: AlertStatus) => {
-    setAlerts((prev) =>
+    setHistoricalAlerts((prev) =>
       prev.map((a) => (a.id === alertId ? { ...a, status: newStatus } : a))
     );
     setSelectedAlert(null);
@@ -46,45 +53,84 @@ export default function AlertsPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-2xl font-bold tracking-tight text-gray-900">Alert Center & Operational Response</h2>
-            <Badge variant="critical" icon={<AlertOctagon className="w-3.5 h-3.5" />}>Anomaly Rule Engine</Badge>
+            {isOnline ? (
+              <Badge variant="normal" icon={<Radio className="w-3.5 h-3.5 animate-pulse text-emerald-600" />}>
+                Live Anomaly Engine Active
+              </Badge>
+            ) : (
+              <Badge variant="neutral">
+                Engine Standby
+              </Badge>
+            )}
           </div>
           <p className="text-sm text-gray-500">
-            Audit continuous off-peak water leaks, critical high flow rates, and missing telemetry events.
+            Real-time anomaly evaluation on active ESP32 telemetry stream and historical incident audit log.
           </p>
         </div>
+      </div>
+
+      {/* Mode Selector Tabs */}
+      <div className="flex items-center gap-3 border-b border-gray-200 pb-3">
+        <button
+          onClick={() => setActiveTab("live")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "live"
+              ? "bg-[#0B6B4F] text-white shadow-xs"
+              : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          <span className={`w-2 h-2 rounded-full ${isOnline ? "bg-emerald-300 animate-ping" : "bg-gray-400"}`} />
+          Active Live Anomalies ({liveAlerts.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("archive")}
+          className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+            activeTab === "archive"
+              ? "bg-[#0B6B4F] text-white shadow-xs"
+              : "bg-white text-gray-700 border border-gray-200 hover:bg-gray-50"
+          }`}
+        >
+          Historical Archive (Demo Data) ({historicalAlerts.length})
+        </button>
       </div>
 
       {/* KPI Row */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard
-          title="Critical Alerts"
-          value={alerts.filter((a) => a.severity === "critical" && a.status !== "resolved").length}
-          unit="Active"
-          badge={<Badge variant="critical">Immediate Action</Badge>}
+          title="Active Live Anomalies"
+          value={liveAlerts.length}
+          unit="Current"
+          badge={
+            liveAlerts.length > 0 ? (
+              <Badge variant="critical">Immediate Action</Badge>
+            ) : (
+              <Badge variant="normal">Normal Stream</Badge>
+            )
+          }
           icon={<AlertOctagon className="w-5 h-5 text-red-600" />}
-          supportingText="Flow > Threshold in Off-Peak"
+          supportingText={isOnline ? "Real-time AI Rule Evaluation" : "Node in Standby"}
         />
 
         <KpiCard
-          title="Under Investigation"
-          value={alerts.filter((a) => a.status === "investigating").length}
-          unit="In Progress"
-          badge={<Badge variant="info">Assigned</Badge>}
+          title="Current AI Risk Score"
+          value={riskLevel}
+          unit="Level"
+          badge={<Badge variant={riskLevel === "CRITICAL" ? "critical" : riskLevel === "HIGH" ? "warning" : "normal"}>Composite</Badge>}
           icon={<AlertTriangle className="w-5 h-5 text-[#0B6B4F]" />}
-          supportingText="Maintenance On Site"
+          supportingText="Multi-factor Gaussian Scorer"
         />
 
         <KpiCard
-          title="Resolved Incident History"
-          value={alerts.filter((a) => a.status === "resolved").length}
-          unit="Retained"
+          title="Archived Incidents (Demo)"
+          value={historicalAlerts.length}
+          unit="Records"
           icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />}
-          supportingText="Preserved for Reporting"
+          supportingText="Preserved for Reporting Audits"
         />
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between gap-2 border-b border-gray-200 pb-2">
+      {/* Filter Tabs for Archive Mode */}
+      {activeTab === "archive" && (
         <div className="flex items-center gap-2">
           {(["all", "pending", "investigating", "resolved"] as const).map((st) => (
             <button
@@ -96,17 +142,27 @@ export default function AlertsPage() {
                   : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-50"
               }`}
             >
-              {st === "all" ? `All Alerts (${alerts.length})` : st}
+              {st === "all" ? `All Archive (${historicalAlerts.length})` : st}
             </button>
           ))}
         </div>
-      </div>
+      )}
 
       {/* Alert Rows List */}
       <div className="space-y-3">
-        {filteredAlerts.map((alert) => (
-          <AlertRow key={alert.id} alert={alert} onViewDetails={(a) => setSelectedAlert(a)} />
-        ))}
+        {displayedAlerts.length > 0 ? (
+          displayedAlerts.map((alert) => (
+            <AlertRow key={alert.id} alert={alert} onViewDetails={(a) => setSelectedAlert(a)} />
+          ))
+        ) : (
+          <div className="p-8 rounded-2xl border border-dashed border-gray-200 bg-white text-center text-xs text-gray-500">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
+            <p className="font-semibold text-gray-800 text-sm">No Active Live Water Anomalies</p>
+            <p className="mt-1 text-gray-400">
+              The live telemetry stream from physical node is operating within baseline parameters without threshold breaches.
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Alert Detail & Investigation Modal */}
@@ -171,3 +227,4 @@ export default function AlertsPage() {
     </AppShell>
   );
 }
+

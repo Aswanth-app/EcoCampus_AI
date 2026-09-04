@@ -13,29 +13,55 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { LiveTelemetryCard } from "@/components/ui/live-telemetry-card";
 import { useTelemetry } from "@/lib/use-telemetry";
+import { useWaterAi } from "@/lib/use-water-ai";
 import {
   MOCK_BUILDINGS,
   MOCK_ALERTS,
-  MOCK_INSIGHTS,
-  MOCK_HOURLY_TREND,
   MOCK_CAMPUSES,
 } from "@/data/mock-data";
-import { Droplets, Activity, AlertTriangle, Cpu, Radio, CheckCircle2 } from "lucide-react";
-import { Alert } from "@/types";
+import { formatDate } from "@/lib/utils";
+import { Droplets, Activity, AlertTriangle, Cpu, Radio, CheckCircle2, AlertCircle, Database } from "lucide-react";
+import { Alert, Building } from "@/types";
 
 export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<"hour" | "day" | "week" | "month">("hour");
   const [selectedAlert, setSelectedAlert] = useState<Alert | null>(null);
+  const [showHistoricalArchive, setShowHistoricalArchive] = useState(false);
 
   // Live ESP32 Telemetry Feed from Supabase
   const { data: telemetryData, metrics, isLoading, isLiveReceiving, refetch } = useTelemetry(4000);
 
+  // Live Water Intelligence & Anomaly Engine Hook
+  const { analysisResult, riskScore, riskLevel, isAnomaly, liveAlerts, liveInsight, isOnline } = useWaterAi(6000);
+
   const mainCampus = MOCK_CAMPUSES[0];
 
-  // Dynamic Chart points from real Supabase telemetry history
+  // Dynamically map buildings: Bind Hostel Block A to live ESP32 node metrics
+  const mappedBuildings: Building[] = MOCK_BUILDINGS.map((bld) => {
+    if (bld.id === "bld_hostel_a") {
+      return {
+        ...bld,
+        currentFlowLpm: metrics.flowRateLpm,
+        waterUsageTodayLiters: metrics.totalVolumeLiters > 0 ? metrics.totalVolumeLiters : bld.waterUsageTodayLiters,
+        status: isAnomaly ? "critical" : isOnline ? "normal" : "offline",
+        devicesOnlineCount: isOnline ? 1 : 0,
+        devicesCount: 1,
+        activeAlertsCount: liveAlerts.length,
+        isLiveNode: true,
+        simulationLabel: undefined,
+      };
+    }
+    return {
+      ...bld,
+      isLiveNode: false,
+      simulationLabel: "Simulated Facility",
+    };
+  });
+
+  // Dynamic Chart points from real Supabase telemetry history only
   const recentHistory = telemetryData?.history || [];
   const chartPoints =
-    recentHistory.length >= 6
+    recentHistory.length > 0
       ? recentHistory
           .slice(0, 12)
           .reverse()
@@ -49,7 +75,7 @@ export default function DashboardPage() {
               id: rec.id,
             };
           })
-      : MOCK_HOURLY_TREND.slice(0, 12);
+      : [];
 
   return (
     <AppShell>
@@ -67,13 +93,13 @@ export default function DashboardPage() {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <h2 className="text-2xl font-bold tracking-tight text-gray-900">Facility Operations & Water Telemetry</h2>
-            {metrics.isOnline ? (
+            {isOnline ? (
               <Badge variant="normal" icon={<Radio className="w-3.5 h-3.5 animate-pulse text-emerald-600" />}>
                 ESP32 Hardware Connected
               </Badge>
             ) : (
-              <Badge variant="neutral" icon={<Activity className="w-3.5 h-3.5" />}>
-                System Ready
+              <Badge variant="neutral" icon={<Activity className="w-3.5 h-3.5 text-gray-500" />}>
+                Node in Standby / Offline
               </Badge>
             )}
           </div>
@@ -87,7 +113,7 @@ export default function DashboardPage() {
             Manage Hardware
           </Button>
           <Button variant="primary" size="sm" onClick={() => (window.location.href = "/water")}>
-            Water Analytics $\rightarrow$
+            Water Analytics
           </Button>
         </div>
       </div>
@@ -105,13 +131,14 @@ export default function DashboardPage() {
         isOnline={metrics.isOnline}
         isLiveReceiving={isLiveReceiving}
         isLoading={isLoading}
+        totalRecordsCount={metrics.totalRecordsCount}
         onRefresh={refetch}
       />
 
       {/* KPI Cards Row (Connected to Live Supabase Telemetry) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <KpiCard
-          title="ESP32 Measured Volume"
+          title="Total Measured Volume"
           value={metrics.totalVolumeLiters > 0 ? metrics.totalVolumeLiters.toFixed(2) : "0.00"}
           unit="Liters"
           trend={{ value: `${metrics.pulseCount.toLocaleString()} pulses`, direction: "up", label: "Hall sensor", isPositive: true }}
@@ -120,11 +147,11 @@ export default function DashboardPage() {
         />
 
         <KpiCard
-          title="Current Live Flow"
-          value={metrics.flowRateLpm.toFixed(1)}
+          title="Current Flow Rate"
+          value={metrics.flowRateLpm.toFixed(2)}
           unit="L/min"
           trend={{
-            value: metrics.flowRateLpm > 0 ? "Active Flowing" : "Static / No Flow",
+            value: metrics.flowRateLpm > 0 ? "Active Flowing" : "Quiescent (Zero Flow)",
             direction: metrics.flowRateLpm > 0 ? "up" : "neutral",
             label: "YF-S201",
             isPositive: true,
@@ -134,25 +161,33 @@ export default function DashboardPage() {
         />
 
         <KpiCard
-          title="Active Alerts"
-          value={MOCK_ALERTS.filter((a) => a.status !== "resolved").length}
+          title="Live Active Alerts"
+          value={liveAlerts.length}
           unit="Active"
-          badge={<Badge variant="critical">1 Critical</Badge>}
+          badge={
+            liveAlerts.length > 0 ? (
+              <Badge variant={liveAlerts.some((a) => a.severity === "critical") ? "critical" : "warning"}>
+                {liveAlerts.length} Critical
+              </Badge>
+            ) : (
+              <Badge variant="normal">Normal Baseline</Badge>
+            )
+          }
           icon={<AlertTriangle className="w-5 h-5 text-red-600" />}
-          supportingText="Zero false positives detected"
+          supportingText="False-positive metric unavailable"
         />
 
         <KpiCard
-          title="Hardware Nodes"
-          value={metrics.isOnline ? "1 / 1 Online" : "1 Registered"}
+          title="Water Nodes Online"
+          value={metrics.isOnline ? "1 / 1 Online" : "0 / 1 Online (Standby)"}
           unit="Active"
           trend={{
-            value: metrics.isOnline ? "Online (ESP32)" : "Standby",
+            value: metrics.isOnline ? "Online (ESP32)" : "Standby (>120s)",
             direction: metrics.isOnline ? "up" : "neutral",
             label: metrics.deviceUid,
           }}
           icon={<Cpu className="w-5 h-5 text-emerald-600" />}
-          supportingText={metrics.firmwareVersion ? `Firmware ${metrics.firmwareVersion}` : "100% Ingestion Availability"}
+          supportingText={metrics.firmwareVersion ? `Firmware ${metrics.firmwareVersion}` : "Strict 120s Freshness Rule"}
         />
       </div>
 
@@ -161,16 +196,18 @@ export default function DashboardPage() {
         {/* Left Column: Water Consumption Trend Chart (2 cols) */}
         <div className="lg:col-span-2">
           <ChartCard
-            title="Real-Time Water Flow Telemetry (L/min)"
-            subtitle="Live flow data streamed from ESP32 DevKit V1 + YF-S201 and stored in Supabase public.telemetry."
+            title="Hourly Water Consumption & Real-time Flow Stream"
+            subtitle="Comparing current flow telemetry against typical historical campus baseline."
             action={
-              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg text-xs font-medium">
+              <div className="flex items-center gap-1 bg-gray-100 p-1 rounded-lg text-xs">
                 {(["hour", "day", "week", "month"] as const).map((range) => (
                   <button
                     key={range}
                     onClick={() => setTimeRange(range)}
-                    className={`px-2.5 py-1 rounded-md capitalize transition-colors ${
-                      timeRange === range ? "bg-white text-gray-900 shadow-xs font-semibold" : "text-gray-600 hover:text-gray-900"
+                    className={`px-2.5 py-1 rounded-md capitalize font-medium transition-all ${
+                      timeRange === range
+                        ? "bg-white text-gray-900 shadow-xs font-semibold"
+                        : "text-gray-500 hover:text-gray-900"
                     }`}
                   >
                     {range}
@@ -179,70 +216,75 @@ export default function DashboardPage() {
               </div>
             }
           >
-            {/* Visual SVG Chart Representation with Live Telemetry */}
-            <div className="w-full space-y-4">
-              <div className="h-48 w-full relative flex items-end justify-between gap-1.5 pt-6 px-2">
-                {/* Horizontal Baseline Grid Lines */}
-                <div className="absolute inset-x-0 top-6 border-b border-gray-100 text-[10px] text-gray-400 font-mono">10.0 L/min</div>
-                <div className="absolute inset-x-0 top-24 border-b border-dashed border-red-200 text-[10px] text-red-400 font-mono">
-                  5.0 L/min Flow Threshold
-                </div>
-                <div className="absolute inset-x-0 bottom-6 border-b border-gray-100 text-[10px] text-gray-400 font-mono">0.0 L/min</div>
+            {chartPoints.length > 0 ? (
+              <>
+                <div className="h-64 w-full flex items-end justify-between gap-2 pt-6 px-2">
+                  {chartPoints.map((point: any, idx: number) => {
+                    const heightPct = Math.min(100, Math.max(15, (point.flowRateLpm / 15) * 100));
+                    const isCurrentPeak = point.flowRateLpm > 10;
 
-                {/* SVG Line / Bar Representation from live telemetry */}
-                {chartPoints.map((point: any, i: number) => {
-                  const flow = Number(point.flowRateLpm) || 0;
-                  const maxChartFlow = 10;
-                  const heightPct = Math.min(100, Math.max(8, (flow / maxChartFlow) * 100));
-                  const isHigh = flow > 5.0;
+                    return (
+                      <div key={idx} className="flex-1 flex flex-col items-center gap-1 group relative">
+                        {/* Tooltip on hover */}
+                        <div className="opacity-0 group-hover:opacity-100 absolute -top-8 bg-gray-900 text-white text-[10px] py-1 px-2 rounded-md whitespace-nowrap transition-opacity pointer-events-none z-20 font-mono">
+                          {point.label}: {point.flowRateLpm.toFixed(2)} L/min
+                        </div>
 
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center gap-1 z-10 group relative">
-                      {/* Hover Tooltip */}
-                      <div className="opacity-0 group-hover:opacity-100 absolute -top-9 bg-gray-900 text-white text-[10px] py-1 px-2 rounded-md whitespace-nowrap transition-opacity pointer-events-none z-20 font-mono">
-                        {point.label}: {flow.toFixed(2)} L/min
-                        {point.pulseCount !== undefined ? ` • ${point.pulseCount} pulses` : ""}
+                        <div
+                          style={{ height: `${heightPct}%` }}
+                          className={`w-full rounded-t-sm transition-all duration-300 ${
+                            isCurrentPeak ? "bg-amber-500" : "bg-[#0B6B4F]"
+                          }`}
+                        />
+                        <span className="text-[10px] text-gray-400 font-mono truncate max-w-[36px]">{point.label}</span>
                       </div>
-
-                      <div
-                        style={{ height: `${heightPct}%` }}
-                        className={`w-full rounded-t-sm transition-all duration-300 ${
-                          isHigh ? "bg-amber-500 hover:bg-amber-600" : "bg-[#0B6B4F] hover:bg-[#064E3B]"
-                        }`}
-                      />
-                      <span className="text-[9px] text-gray-400 font-mono truncate max-w-[45px]">{point.label}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+                <div className="flex items-center justify-between text-xs text-gray-500 mt-4 pt-3 border-t border-gray-100">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-2.5 h-2.5 rounded-xs bg-[#0B6B4F]" /> Measured Flow (L/min)
+                  </span>
+                  <span className="flex items-center gap-1.5 font-mono text-[11px]">
+                    Cumulative Stream: {metrics.totalVolumeLiters.toFixed(2)} Liters
+                  </span>
+                </div>
+              </>
+            ) : (
+              <div className="h-56 w-full flex flex-col items-center justify-center text-center p-6 border border-dashed border-gray-200 rounded-xl bg-gray-50/50">
+                <Database className="w-8 h-8 text-gray-400 mb-2" />
+                <p className="text-sm font-semibold text-gray-700">Collecting live telemetry stream from ESP32...</p>
+                <p className="text-xs text-gray-400 mt-1 max-w-md">
+                  Real records recorded by the physical node will plot here as they are received by Supabase.
+                </p>
               </div>
-
-              <div className="flex items-center justify-between text-xs text-gray-500 pt-2 border-t border-gray-100 px-2">
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-xs bg-[#0B6B4F]" /> ESP32 Real-Time Stream
-                </span>
-                <span className="flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded-xs bg-amber-500" /> Active Flow Period ({">"} 5 L/min)
-                </span>
-              </div>
-            </div>
+            )}
           </ChartCard>
         </div>
 
-        {/* Right Column: AI Insight & Priority Action */}
+        {/* Right Column: Dynamic Live AI Insight & Priority Action */}
         <div className="space-y-6">
-          <InsightCard
-            insight={MOCK_INSIGHTS[0]}
-            onAction={(insight) => {
-              const alert = MOCK_ALERTS.find((a) => a.id === insight.alertId);
-              if (alert) setSelectedAlert(alert);
-            }}
-          />
+          {liveInsight ? (
+            <InsightCard
+              insight={liveInsight}
+              onAction={() => (window.location.href = "/water")}
+            />
+          ) : (
+            <div className="p-5 rounded-2xl bg-white border border-gray-200 shadow-xs text-xs text-gray-500">
+              <p className="font-semibold text-gray-800">AI Resource Intelligence</p>
+              <p className="mt-1">AI insight will appear after sufficient live telemetry is collected.</p>
+            </div>
+          )}
 
           {/* Hardware Telemetry Pipeline Status */}
           <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs">
             <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center justify-between">
               <span>Hardware Data Pipeline</span>
-              <Badge variant="normal">Live</Badge>
+              {isOnline ? (
+                <Badge variant="normal">Live</Badge>
+              ) : (
+                <Badge variant="neutral">Standby</Badge>
+              )}
             </h4>
             <div className="space-y-2 text-xs">
               <div className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
@@ -267,15 +309,17 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-900">Campus Facilities Matrix</h3>
-            <p className="text-xs text-gray-500">Hardware nodes deployed across main facilities.</p>
+            <p className="text-xs text-gray-500">
+              Hostel Block A is bound to live hardware node <strong>{metrics.deviceUid}</strong>. Other buildings represent simulated facilities.
+            </p>
           </div>
           <Button variant="ghost" size="sm" onClick={() => (window.location.href = "/locations")}>
-            View All Locations $\rightarrow$
+            View All Locations
           </Button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {MOCK_BUILDINGS.map((bld) => (
+          {mappedBuildings.map((bld) => (
             <BuildingCard
               key={bld.id}
               building={bld}
@@ -292,16 +336,63 @@ export default function DashboardPage() {
             <h3 className="text-lg font-semibold text-gray-900">Recent Operational Alerts</h3>
             <p className="text-xs text-gray-500">Automated leak detection and anomaly evaluation events.</p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => (window.location.href = "/alerts")}>
-            View Alert Center
-          </Button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowHistoricalArchive(!showHistoricalArchive)}
+              className="text-xs text-[#0B6B4F] hover:underline font-semibold"
+            >
+              {showHistoricalArchive ? "Hide Historical Archive" : "View Historical Archive (Demo Data)"}
+            </button>
+            <Button variant="outline" size="sm" onClick={() => (window.location.href = "/alerts")}>
+              View Alert Center
+            </Button>
+          </div>
         </div>
 
-        <div className="space-y-3">
-          {MOCK_ALERTS.map((alert) => (
-            <AlertRow key={alert.id} alert={alert} onViewDetails={(a) => setSelectedAlert(a)} />
-          ))}
-        </div>
+        {liveAlerts.length > 0 ? (
+          <div className="space-y-3">
+            {liveAlerts.map((alert) => (
+              <AlertRow key={alert.id} alert={alert} onViewDetails={(a) => setSelectedAlert(a)} />
+            ))}
+          </div>
+        ) : (
+          <div className="p-5 rounded-xl border border-emerald-200 bg-emerald-50/40 text-xs flex items-center justify-between text-emerald-950">
+            <div className="flex items-center gap-2.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+              <span>
+                <strong>No Active Anomalies:</strong> Live telemetry is within baseline operating parameters.
+              </span>
+            </div>
+            <span className="text-[11px] font-mono text-emerald-800">
+              {metrics.latestTimestamp ? `Evaluated: ${formatDate(metrics.latestTimestamp)}` : "Awaiting stream"}
+            </span>
+          </div>
+        )}
+
+        {/* Historical Archive Feed (Demo Data) */}
+        {showHistoricalArchive && (
+          <div className="mt-4 p-4 rounded-xl border border-amber-200 bg-amber-50/40 space-y-3">
+            <div className="flex items-center justify-between pb-2 border-b border-amber-200 text-xs">
+              <span className="font-bold text-amber-950 flex items-center gap-1.5">
+                <AlertCircle className="w-4 h-4 text-amber-600" />
+                Historical Archive / Sample Incident Log (Demo Data)
+              </span>
+              <Badge variant="warning">Sample Archive (Aug 2026)</Badge>
+            </div>
+            <div className="space-y-2">
+              {MOCK_ALERTS.map((alert) => (
+                <AlertRow
+                  key={alert.id}
+                  alert={{
+                    ...alert,
+                    isHistoricalDemo: true,
+                  }}
+                  onViewDetails={(a) => setSelectedAlert(a)}
+                />
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Alert Investigation Modal */}
@@ -348,3 +439,4 @@ export default function DashboardPage() {
     </AppShell>
   );
 }
+

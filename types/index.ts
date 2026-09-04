@@ -52,6 +52,8 @@ export interface Building {
   currentFlowLpm: number;
   status: "normal" | "warning" | "critical" | "offline";
   activeAlertsCount: number;
+  isLiveNode?: boolean;
+  simulationLabel?: string;
 }
 
 export interface Location {
@@ -137,6 +139,8 @@ export interface Alert {
   resolvedBy?: string;
   recommendationTitle: string;
   recommendationDescription: string;
+  isLiveAlert?: boolean;
+  isHistoricalDemo?: boolean;
 }
 
 export interface Insight {
@@ -158,3 +162,80 @@ export interface UsageTrendPoint {
   volumeLiters: number;
   expectedLpm?: number;
 }
+
+// ============================================================================
+// Water Intelligence & AI Anomaly Types (Additive)
+// ============================================================================
+
+export type RiskLevel = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+
+export type WaterAnomalyType =
+  | "continuous_flow"
+  | "off_hours_flow"
+  | "sudden_spike"
+  | "baseline_deviation"
+  | "leakage_suspected";
+
+export interface NormalizedTelemetry {
+  sensor_id: string;
+  device_id: string;
+  flow_rate_lpm: number;
+  total_volume_liters: number;
+  timestamp: string;
+  pulse_count?: number;
+}
+
+export interface BaselineProfile {
+  hourOfDay: number;
+  isWeekend: boolean;
+  meanFlowLpm: number;
+  stdDevLpm: number;
+  minExpectedLpm: number;
+  maxExpectedLpm: number;
+  isLearned: boolean;
+  sampleCount: number;
+  locationType?: string;
+}
+
+export interface DetectedAnomaly {
+  id?: string;
+  type: WaterAnomalyType;
+  ruleTriggered: string;
+  severity: AlertSeverity;
+  riskScore: number;
+  riskLevel: RiskLevel;
+  detectedAt: string;
+  observedFlowLpm: number;
+  baselineExpectedLpm: number;
+  durationMinutes: number;
+  estimatedLossLiters: number;
+  explanation: string;
+  recommendation: {
+    title: string;
+    description: string;
+    priority: "low" | "medium" | "high" | "critical";
+  };
+  evidence: Record<string, any>;
+}
+
+export interface WaterAnalysisResult {
+  sensorId: string;
+  deviceId: string;
+  timestamp: string;
+  latestFlowRateLpm: number;
+  latestTotalVolumeLiters: number;
+  baseline: BaselineProfile;
+  anomalies: DetectedAnomaly[];
+  compositeRiskScore: number;
+  compositeRiskLevel: RiskLevel;
+  isAnomaly: boolean;
+  primaryReason: string;
+  primaryRecommendation: {
+    title: string;
+    description: string;
+    priority: "low" | "medium" | "high" | "critical";
+  } | null;
+  avoidableVolumeTodayLiters: number;
+  evaluatedAt: string;
+}
+

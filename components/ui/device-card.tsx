@@ -31,7 +31,7 @@ export const DeviceCard: React.FC<DeviceCardProps> = ({ device, onViewDetails })
           <div className="flex items-center gap-1.5">
             <MapPin className="w-3.5 h-3.5 text-gray-400 shrink-0" />
             <span className="truncate">
-              {device.buildingName} $\rightarrow$ {device.locationName}
+              {device.buildingName} → {device.locationName}
             </span>
           </div>
           <div className="flex items-center gap-1.5">
