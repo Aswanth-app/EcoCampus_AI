@@ -291,42 +291,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // 7. Microcontroller Reboot & Monotonic Cumulative Safeguard
-      // Fetch latest previous telemetry record for cumulative check across ESP32 restarts
-      const { data: latestPreviousRecord } = await supabaseAdmin
-        .from("telemetry")
-        .select("id, pulse_count, total_volume_liters, timestamp")
-        .eq("sensor_id", sensorData.id)
-        .order("id", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      let effectivePulseCount = Math.floor(pulse_count);
-      let effectiveTotalVolume = Number(total_volume_liters) || 0;
-
-      if (latestPreviousRecord) {
-        const prevPulses = Number(latestPreviousRecord.pulse_count) || 0;
-        const prevVolume = Number(latestPreviousRecord.total_volume_liters) || 0;
-
-        // If incoming pulse count is less than the previous recorded pulse count,
-        // the ESP32 was rebooted/power-cycled and restarted its RAM counter from 0.
-        // We preserve cumulative history by adding the reboot session's pulses to the previous total.
-        if (effectivePulseCount < prevPulses) {
-          effectivePulseCount = prevPulses + Math.floor(pulse_count);
-          const incrementalVolume = total_volume_liters > 0 ? total_volume_liters : pulse_count / 450.0;
-          effectiveTotalVolume = Number((prevVolume + incrementalVolume).toFixed(3));
-        } else {
-          // Monotonic safeguard: ensure cumulative total volume never drops below the previous recorded volume
-          if (effectiveTotalVolume < prevVolume) {
-            effectiveTotalVolume = prevVolume;
-          }
-        }
-      }
+      // 7. Store Direct Sensor Telemetry Reading (Preserving exact ESP32 hardware values)
+      const effectivePulseCount = Math.floor(pulse_count);
+      const effectiveTotalVolume = Number(Number(total_volume_liters).toFixed(3));
+      const effectiveFlowRate = Number(Number(flow_rate_lpm).toFixed(2));
 
       // 8. Database Telemetry Insertion using Admin client
       const { error: insertErr } = await supabaseAdmin.from("telemetry").insert({
         sensor_id: sensorData.id,
-        flow_rate_lpm: flow_rate_lpm,
+        flow_rate_lpm: effectiveFlowRate,
         total_volume_liters: effectiveTotalVolume,
         pulse_count: effectivePulseCount,
         timestamp: formattedTimestamp,

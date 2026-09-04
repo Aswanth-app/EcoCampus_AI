@@ -69,20 +69,20 @@ export async function GET() {
       }
     }
 
-    // 3. Fetch Recent Telemetry History (ordered by timestamp DESC, id DESC)
+    // 3. Fetch Recent Telemetry History (ordered by id DESC, timestamp DESC)
     const telemetryQuery = sensorData?.id
       ? dbClient
           .from("telemetry")
           .select("id, sensor_id, flow_rate_lpm, total_volume_liters, pulse_count, timestamp, received_at, status")
           .eq("sensor_id", sensorData.id)
-          .order("timestamp", { ascending: false })
           .order("id", { ascending: false })
+          .order("timestamp", { ascending: false })
           .limit(30)
       : dbClient
           .from("telemetry")
           .select("id, sensor_id, flow_rate_lpm, total_volume_liters, pulse_count, timestamp, received_at, status")
-          .order("timestamp", { ascending: false })
           .order("id", { ascending: false })
+          .order("timestamp", { ascending: false })
           .limit(30);
 
     const { data: historyList, error: telErr } = await telemetryQuery;
