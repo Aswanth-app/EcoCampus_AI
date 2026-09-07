@@ -20,7 +20,7 @@ import {
   MOCK_CAMPUSES,
 } from "@/data/mock-data";
 import { formatDate } from "@/lib/utils";
-import { Droplets, Activity, AlertTriangle, Cpu, Radio, CheckCircle2, AlertCircle, Database } from "lucide-react";
+import { Droplets, Activity, AlertTriangle, Cpu, Radio, CheckCircle2, AlertCircle, Database, ShieldCheck, Lock } from "lucide-react";
 import { Alert, Building } from "@/types";
 
 export default function DashboardPage() {
@@ -336,6 +336,44 @@ export default function DashboardPage() {
                 <span className="font-medium text-gray-700">Database Storage</span>
                 <span className="text-emerald-700 font-medium">Supabase public.telemetry</span>
               </div>
+            </div>
+          </div>
+
+          {/* Cybersecurity & Threat Posture Card */}
+          <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-xs">
+            <div className="flex items-center justify-between mb-3">
+              <h4 className="text-sm font-semibold text-gray-900 flex items-center gap-1.5">
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Security & Privacy Posture</span>
+              </h4>
+              <Badge variant="normal">Protected</Badge>
+            </div>
+            <div className="space-y-2 text-xs">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                <span className="font-medium text-gray-700">API Ingest Auth</span>
+                <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> SHA-256 Verified
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                <span className="font-medium text-gray-700">Device Identity</span>
+                <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3" /> Hardware UID Bound
+                </span>
+              </div>
+              <div className="flex items-center justify-between p-2 rounded-lg bg-gray-50">
+                <span className="font-medium text-gray-700">Audit & Events</span>
+                <span className="text-emerald-700 font-semibold">Active In-Memory Log</span>
+              </div>
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+              <span className="text-[11px] text-gray-400">8 / 8 Active Controls</span>
+              <button
+                onClick={() => (window.location.href = "/security")}
+                className="text-xs text-[#0B6B4F] hover:underline font-semibold flex items-center gap-1"
+              >
+                Security Center &rarr;
+              </button>
             </div>
           </div>
         </div>

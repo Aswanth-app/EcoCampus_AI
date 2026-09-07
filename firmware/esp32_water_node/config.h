@@ -8,10 +8,10 @@
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// 1. Wi-Fi Hotspot Credentials (Configurable - Do NOT commit real secrets)
+// 1. Wi-Fi Hotspot Credentials (Configure with your local network credentials)
 // ----------------------------------------------------------------------------
-#define WIFI_SSID           "As_12"
-#define WIFI_PASSWORD       "Aswanth0512-12*12"
+#define WIFI_SSID           "YOUR_WIFI_SSID"
+#define WIFI_PASSWORD       "YOUR_WIFI_PASSWORD"
 #define WIFI_CONNECT_TIMEOUT_MS  15000 // 15 seconds connection timeout
 #define WIFI_RETRY_DELAY_MS      3000  // 3 seconds between retries
 

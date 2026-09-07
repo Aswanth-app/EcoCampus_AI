@@ -15,6 +15,12 @@ tsconfig.tsbuildinfo
 *.key
 *.cert
 
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
 # IDE / OS
 .DS_Store
 Thumbs.db
@@ -23,6 +29,3 @@ Thumbs.db
 
 # Vercel
 .vercel
-
-.vercel
-.env*

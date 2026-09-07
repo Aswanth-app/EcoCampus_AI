@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   MapPin,
   Cpu,
+  ShieldCheck,
   FileText,
   Settings,
   HelpCircle,
@@ -38,6 +39,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
     { label: "Alerts", href: "/alerts", icon: AlertTriangle, badge: "2" },
     { label: "Locations", href: "/locations", icon: MapPin },
     { label: "Devices", href: "/devices", icon: Cpu },
+    { label: "Security & Privacy", href: "/security", icon: ShieldCheck },
     { label: "Reports", href: "/reports", icon: FileText },
   ];
 

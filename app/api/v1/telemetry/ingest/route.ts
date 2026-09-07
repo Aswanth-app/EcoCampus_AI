@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { hashDeviceApiKey, safeHashCompare } from "@/lib/security";
+import {
+  hashDeviceApiKey,
+  safeHashCompare,
+  checkRateLimit,
+  validateTelemetryPayload,
+} from "@/lib/security";
+import { recordSecurityEvent } from "@/lib/security-events";
 import {
   supabaseAdmin,
   isSupabaseAdminConfigured,
@@ -20,33 +26,92 @@ export interface TelemetryIngestPayload {
 const devProcessedTelemetry = new Set<string>();
 
 export async function POST(request: NextRequest) {
+  const clientIp =
+    request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    request.headers.get("x-real-ip") ||
+    "client_local";
+
   try {
-    // 1. Extract X-Device-API-Key Header
+    // 1. Rate Limiting Check (30 requests/min per client IP)
+    const rateLimit = checkRateLimit(clientIp, 30, 60 * 1000);
+    if (!rateLimit.allowed) {
+      recordSecurityEvent({
+        eventType: "rate_limit_triggered",
+        severity: "warning",
+        source: "POST /api/v1/telemetry/ingest",
+        message: `Rate limit threshold exceeded (${rateLimit.current} requests in current window)`,
+        details: { client_ip: clientIp, reset_in_ms: rateLimit.resetMs },
+      });
+
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Rate limit exceeded. Maximum 30 requests per minute.",
+        },
+        {
+          status: 429,
+          headers: {
+            "Retry-After": Math.ceil(rateLimit.resetMs / 1000).toString(),
+            "X-RateLimit-Limit": "30",
+            "X-RateLimit-Remaining": "0",
+          },
+        }
+      );
+    }
+
+    // 2. Extract X-Device-API-Key Header
     const apiKey =
       request.headers.get("x-device-api-key") ||
       request.headers.get("X-Device-API-Key");
 
     if (!apiKey || typeof apiKey !== "string" || !apiKey.trim()) {
+      recordSecurityEvent({
+        eventType: "auth_failed",
+        severity: "critical",
+        source: "POST /api/v1/telemetry/ingest",
+        message: "API authentication rejected: Missing or empty X-Device-API-Key header",
+        details: { client_ip: clientIp },
+      });
+
       return NextResponse.json(
         { success: false, error: "Missing or empty X-Device-API-Key header" },
         { status: 401 }
       );
     }
 
-    // 2. Parse JSON Body securely
-    let body: Partial<TelemetryIngestPayload>;
+    // 3. Parse JSON Body securely
+    let body: any;
     try {
       body = await request.json();
     } catch {
+      recordSecurityEvent({
+        eventType: "payload_invalid",
+        severity: "warning",
+        source: "POST /api/v1/telemetry/ingest",
+        message: "Telemetry ingestion rejected: Malformed JSON payload",
+        details: { client_ip: clientIp },
+      });
+
       return NextResponse.json(
         { success: false, error: "Invalid or malformed JSON payload" },
         { status: 400 }
       );
     }
 
-    if (!body || typeof body !== "object" || Array.isArray(body)) {
+    // 4. Strict Input Validation & Boundary Enforcement
+    const validation = validateTelemetryPayload(body);
+    if (!validation.valid || !validation.sanitized) {
+      recordSecurityEvent({
+        eventType: "payload_invalid",
+        severity: "warning",
+        source: "POST /api/v1/telemetry/ingest",
+        deviceUid: typeof body?.device_id === "string" ? body.device_id : undefined,
+        message: `Telemetry payload rejected: ${validation.error}`,
+        details: { client_ip: clientIp, error_reason: validation.error || "validation_error" },
+      });
+
       return NextResponse.json(
-        { success: false, error: "JSON payload must be an object" },
+        { success: false, error: validation.error || "Invalid telemetry payload" },
         { status: 400 }
       );
     }
@@ -54,87 +119,17 @@ export async function POST(request: NextRequest) {
     const {
       device_id,
       sensor_id,
+    } = body;
+    const {
       flow_rate_lpm,
       total_volume_liters,
       pulse_count,
-      timestamp,
-    } = body;
+      timestamp: formattedTimestamp,
+    } = validation.sanitized;
 
-    // 3. Strict Input Validation & Type Enforcement
-    if (!device_id || typeof device_id !== "string" || !device_id.trim()) {
-      return NextResponse.json(
-        { success: false, error: "Missing or invalid device_id" },
-        { status: 400 }
-      );
-    }
-
-    if (!sensor_id || typeof sensor_id !== "string" || !sensor_id.trim()) {
-      return NextResponse.json(
-        { success: false, error: "Missing or invalid sensor_id" },
-        { status: 400 }
-      );
-    }
-
-    if (
-      typeof flow_rate_lpm !== "number" ||
-      isNaN(flow_rate_lpm) ||
-      !isFinite(flow_rate_lpm) ||
-      flow_rate_lpm < 0
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "flow_rate_lpm must be a non-negative numeric value",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (
-      typeof total_volume_liters !== "number" ||
-      isNaN(total_volume_liters) ||
-      !isFinite(total_volume_liters) ||
-      total_volume_liters < 0
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "total_volume_liters must be a non-negative numeric value",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (
-      typeof pulse_count !== "number" ||
-      isNaN(pulse_count) ||
-      !isFinite(pulse_count) ||
-      pulse_count < 0
-    ) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "pulse_count must be a non-negative numeric value",
-        },
-        { status: 400 }
-      );
-    }
-
-    if (
-      !timestamp ||
-      typeof timestamp !== "string" ||
-      isNaN(Date.parse(timestamp))
-    ) {
-      return NextResponse.json(
-        { success: false, error: "Invalid ISO-8601 timestamp format" },
-        { status: 400 }
-      );
-    }
-
-    const formattedTimestamp = new Date(timestamp).toISOString();
     const incomingKeyHash = hashDeviceApiKey(apiKey);
 
-    // 4. Device Lookup & Key Verification
+    // 5. Device Lookup & Key Verification
     let deviceData: {
       id: string;
       device_uid: string;
@@ -167,6 +162,15 @@ export async function POST(request: NextRequest) {
         : await deviceQuery.eq("device_uid", device_id).maybeSingle();
 
       if (devErr || !dbDevice) {
+        recordSecurityEvent({
+          eventType: "unauthorized_device",
+          severity: "critical",
+          source: "POST /api/v1/telemetry/ingest",
+          deviceUid: device_id,
+          message: `Device '${device_id}' unregistered or not found in registry`,
+          details: { client_ip: clientIp },
+        });
+
         return NextResponse.json(
           { success: false, error: `Device '${device_id}' not found` },
           { status: 404 }
@@ -182,6 +186,15 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (senErr || !dbSensor) {
+        recordSecurityEvent({
+          eventType: "unauthorized_device",
+          severity: "critical",
+          source: "POST /api/v1/telemetry/ingest",
+          deviceUid: device_id,
+          message: `Sensor '${sensor_id}' unregistered or not found`,
+          details: { client_ip: clientIp },
+        });
+
         return NextResponse.json(
           { success: false, error: `Sensor '${sensor_id}' not found` },
           { status: 404 }
@@ -195,6 +208,15 @@ export async function POST(request: NextRequest) {
       );
 
       if (!mockDev) {
+        recordSecurityEvent({
+          eventType: "unauthorized_device",
+          severity: "critical",
+          source: "POST /api/v1/telemetry/ingest",
+          deviceUid: device_id,
+          message: `Device '${device_id}' not found in mock registry`,
+          details: { client_ip: clientIp },
+        });
+
         return NextResponse.json(
           { success: false, error: `Device '${device_id}' not found` },
           { status: 404 }
@@ -220,6 +242,15 @@ export async function POST(request: NextRequest) {
       const mockSen = MOCK_SENSORS.find((s) => s.id === sensor_id);
 
       if (!mockSen) {
+        recordSecurityEvent({
+          eventType: "unauthorized_device",
+          severity: "critical",
+          source: "POST /api/v1/telemetry/ingest",
+          deviceUid: device_id,
+          message: `Sensor '${sensor_id}' not found in mock registry`,
+          details: { client_ip: clientIp },
+        });
+
         return NextResponse.json(
           { success: false, error: `Sensor '${sensor_id}' not found` },
           { status: 404 }
@@ -233,25 +264,52 @@ export async function POST(request: NextRequest) {
       };
     }
 
-    // 5. Authentication & Authorization Enforcement
-    // 5.1 Device Status Check
+    // 6. Authentication & Authorization Enforcement
+    // 6.1 Device Status Check
     if (deviceData.status === "inactive") {
+      recordSecurityEvent({
+        eventType: "unauthorized_device",
+        severity: "critical",
+        source: "POST /api/v1/telemetry/ingest",
+        deviceUid: deviceData.device_uid,
+        message: `Unauthorized attempt from inactive device '${deviceData.device_uid}'`,
+        details: { client_ip: clientIp, device_status: deviceData.status },
+      });
+
       return NextResponse.json(
         { success: false, error: "Unauthorized: Device is inactive" },
         { status: 403 }
       );
     }
 
-    // 5.2 Sensor Status Check
+    // 6.2 Sensor Status Check
     if (sensorData.status !== "active") {
+      recordSecurityEvent({
+        eventType: "unauthorized_device",
+        severity: "critical",
+        source: "POST /api/v1/telemetry/ingest",
+        deviceUid: deviceData.device_uid,
+        message: `Unauthorized attempt with inactive sensor '${sensorData.id}'`,
+        details: { client_ip: clientIp, sensor_status: sensorData.status },
+      });
+
       return NextResponse.json(
         { success: false, error: "Unauthorized: Sensor is inactive" },
         { status: 403 }
       );
     }
 
-    // 5.3 Device-Sensor Relationship Authorization
+    // 6.3 Device-Sensor Relationship Authorization
     if (sensorData.device_id !== deviceData.id) {
+      recordSecurityEvent({
+        eventType: "unauthorized_device",
+        severity: "critical",
+        source: "POST /api/v1/telemetry/ingest",
+        deviceUid: deviceData.device_uid,
+        message: `Authorization violation: Sensor '${sensorData.id}' is not mapped to device '${deviceData.device_uid}'`,
+        details: { client_ip: clientIp },
+      });
+
       return NextResponse.json(
         {
           success: false,
@@ -261,10 +319,19 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 5.4 Device API Key Authentication Verification
+    // 6.4 Device API Key Authentication Verification (Timing-safe comparison)
     if (deviceData.api_key_hash) {
       const isValid = safeHashCompare(incomingKeyHash, deviceData.api_key_hash);
       if (!isValid) {
+        recordSecurityEvent({
+          eventType: "auth_failed",
+          severity: "critical",
+          source: "POST /api/v1/telemetry/ingest",
+          deviceUid: deviceData.device_uid,
+          message: `Authentication failed for device '${deviceData.device_uid}': Invalid cryptographic key hash`,
+          details: { client_ip: clientIp },
+        });
+
         return NextResponse.json(
           { success: false, error: "Invalid device API key credential" },
           { status: 401 }
@@ -272,7 +339,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6. Duplicate Telemetry Protection (Idempotency)
+    // 7. Duplicate Telemetry Protection (Idempotency)
     const duplicateKey = `${sensorData.id}_${formattedTimestamp}`;
 
     if (isDbActive) {
@@ -291,12 +358,12 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // 7. Store Direct Sensor Telemetry Reading (Preserving exact ESP32 hardware values)
-      const effectivePulseCount = Math.floor(pulse_count);
-      const effectiveTotalVolume = Number(Number(total_volume_liters).toFixed(3));
-      const effectiveFlowRate = Number(Number(flow_rate_lpm).toFixed(2));
+      // 8. Store Direct Sensor Telemetry Reading (Preserving exact ESP32 hardware values)
+      const effectivePulseCount = pulse_count;
+      const effectiveTotalVolume = total_volume_liters;
+      const effectiveFlowRate = flow_rate_lpm;
 
-      // 8. Database Telemetry Insertion using Admin client
+      // 9. Database Telemetry Insertion using Admin client
       const { error: insertErr } = await supabaseAdmin.from("telemetry").insert({
         sensor_id: sensorData.id,
         flow_rate_lpm: effectiveFlowRate,
@@ -315,7 +382,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // 8. Device Heartbeat Update using Admin client
+      // 10. Device Heartbeat Update using Admin client
       await supabaseAdmin
         .from("devices")
         .update({
@@ -334,7 +401,22 @@ export async function POST(request: NextRequest) {
       devProcessedTelemetry.add(duplicateKey);
     }
 
-    // 9. Return Standardized Machine Response
+    // 11. Record Successful Authentication & Telemetry Ingest Event
+    recordSecurityEvent({
+      eventType: "auth_success",
+      severity: "info",
+      source: "POST /api/v1/telemetry/ingest",
+      deviceUid: deviceData.device_uid,
+      message: `Verified telemetry received from ${deviceData.device_uid} (${flow_rate_lpm} L/min, ${total_volume_liters} L)`,
+      details: {
+        flow_rate_lpm,
+        pulse_count,
+        total_volume_liters,
+        client_ip: clientIp,
+      },
+    });
+
+    // 12. Return Standardized Machine Response
     return NextResponse.json(
       {
         success: true,
@@ -350,4 +432,5 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
 
