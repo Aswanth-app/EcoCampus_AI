@@ -20,6 +20,7 @@ import {
   ChevronRight,
   ShieldAlert,
   Building2,
+  Award,
 } from "lucide-react";
 import { MOCK_CURRENT_USER, MOCK_ORGANIZATION } from "@/data/mock-data";
 
@@ -34,6 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
 
   const mainNav = [
     { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
+    { label: "Round 2 Demo", href: "/round2", icon: Award, badge: "R2" },
     { label: "Water", href: "/water", icon: Droplets, badge: "MVP" },
     { label: "Insights", href: "/insights", icon: Sparkles },
     { label: "Alerts", href: "/alerts", icon: AlertTriangle, badge: "2" },
@@ -127,6 +129,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
                         "ml-auto text-[10px] font-bold px-1.5 py-0.5 rounded-md",
                         item.badge === "MVP"
                           ? "bg-emerald-100 text-[#0B6B4F]"
+                          : item.badge === "R2"
+                          ? "bg-cyan-100 text-cyan-900 border border-cyan-300"
                           : "bg-red-100 text-red-700"
                       )}
                     >

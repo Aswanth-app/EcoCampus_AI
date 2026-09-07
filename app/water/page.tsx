@@ -18,7 +18,7 @@ import {
   MOCK_BUILDINGS,
   MOCK_ALERTS,
 } from "@/data/mock-data";
-import { Droplets, Activity, Cpu, AlertTriangle, Filter, Download, Database, CheckCircle2, Radio, Sparkles, ShieldAlert, AlertCircle, Layers } from "lucide-react";
+import { Droplets, Activity, Cpu, AlertTriangle, Filter, Download, Database, CheckCircle2, Radio, Sparkles, ShieldAlert, AlertCircle, Layers, Award } from "lucide-react";
 import { Building } from "@/types";
 
 export default function WaterPage() {
@@ -134,7 +134,16 @@ export default function WaterPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="border-emerald-600 text-[#0B6B4F] hover:bg-emerald-50"
+            icon={<Award className="w-4 h-4 text-emerald-600" />}
+            onClick={() => (window.location.href = "/round2")}
+          >
+            Round 2 Demo &amp; Q&amp;A
+          </Button>
           <Button variant="outline" size="sm" icon={<Download className="w-4 h-4" />} onClick={handleExportCSV}>
             Export Telemetry Log ({history.length})
           </Button>

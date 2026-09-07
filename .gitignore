@@ -6,6 +6,11 @@ tsconfig.tsbuildinfo
 # Dependencies
 /node_modules/
 
+# Firmware & Hardware Secrets
+secrets.h
+firmware/esp32_water_node/secrets.h
+!firmware/esp32_water_node/secrets.example.h
+
 # Environment Variables & Secrets
 .env
 .env.*
