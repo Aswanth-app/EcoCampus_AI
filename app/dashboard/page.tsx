@@ -118,7 +118,7 @@ export default function DashboardPage() {
             icon={<Award className="w-4 h-4 text-emerald-600" />}
             onClick={() => (window.location.href = "/round2")}
           >
-            Round 2 Demo &amp; Q&amp;A
+            Resource Intelligence
           </Button>
           <Button variant="outline" size="sm" onClick={() => (window.location.href = "/devices")}>
             Manage Hardware

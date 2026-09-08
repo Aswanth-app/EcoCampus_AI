@@ -70,7 +70,7 @@ EcoCampus AI addresses dynamic consumption by combining multi-dimensional contex
 - **Dynamic Risk Scoring & Actionable Recommendations**: Deterministic 0–100 composite risk scoring with severity tiers (`NORMAL`, `LOW`, `MEDIUM`, `CRITICAL`), avoidable water loss estimation, and concrete maintenance recommendations.
 - **Security & Reliability Controls**: Cryptographic SHA-256 device authentication with timing-safe comparisons (`crypto.timingSafeEqual`), hardware UID binding, in-memory sliding-window rate limiting, and session security audit logging (`/security`).
 - **Facility Operations Dashboard**: Multi-view operational dashboard covering campus overview, dedicated water telemetry view, device management, security health center, and analytical reporting.
-- **Round 2 Demo & Explainability Module**: Dedicated interactive judge portal (`/round2`) showcasing side-by-side scenario evaluations and interactive architectural Q&A.
+- **Resource Intelligence Module**: Dedicated interactive intelligence portal (`/round2`) showcasing side-by-side scenario evaluations and interactive architectural Q&A.
 
 ### Prototype Features
 - **YF-S201 Inline Flow Sensing**: Benchtop prototype sensor integration for direct volumetric pulse calibration.
@@ -85,9 +85,9 @@ EcoCampus AI addresses dynamic consumption by combining multi-dimensional contex
 
 ---
 
-## 5. Round 2 Demo & Explainability Scenarios
+## 5. Resource Intelligence Scenarios
 
-The Round 2 Explainability Module (`/round2`) demonstrates why static flow thresholds fail and how contextual analysis produces accurate, explainable risk assessments.
+The Resource Intelligence Module (`/round2`) demonstrates why static flow thresholds fail and how contextual analysis produces accurate, explainable risk assessments.
 
 | Parameter | Scenario A: Normal Handwashing | Scenario B: Tap Left Open |
 |---|---|---|
@@ -182,7 +182,7 @@ EcoCampus_AI/
 │   ├── insights/                      # Predictive Analytics & Baselines
 │   ├── locations/                     # Building & Campus Hierarchy
 │   ├── reports/                       # Sustainability & Audit Reports
-│   ├── round2/                        # Round 2 Demo & Judge Explainability Module
+│   ├── round2/                        # Resource Intelligence & Explainability Module
 │   ├── security/                      # Realtime Cybersecurity Posture Center
 │   ├── water/                         # Live Water Telemetry View (MVP)
 │   ├── globals.css                    # Design Tokens & Global CSS
@@ -279,7 +279,7 @@ The application uses the following environment variables (defined in `.env.examp
 
 | Layer | Status | Implementation Details |
 |---|---|---|
-| **Web Dashboard** | **Implemented** | Next.js 16 app with Overview, Live Water, Round 2 Demo, Security Posture, and Device pages. |
+| **Web Dashboard** | **Implemented** | Next.js 16 app with Overview, Live Water, Resource Intelligence, Security Posture, and Device pages. |
 | **Intelligence Engine** | **Implemented** | Heuristic rules, Gaussian diurnal profiler, composite risk scorer, and recommendation generator. |
 | **API Ingestion & Security** | **Implemented** | Secure ingestion endpoint with SHA-256 authentication, timing-safe checks, rate limiting, and schema validation. |
 | **ESP32 Firmware** | **Implemented** | Arduino C++ firmware with hardware interrupts, SNTP time sync, and HTTPS transmission. |

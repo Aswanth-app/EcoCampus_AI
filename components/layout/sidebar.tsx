@@ -35,7 +35,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isMobileOpen, onMobileClose })
 
   const mainNav = [
     { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
-    { label: "Round 2 Demo", href: "/round2", icon: Award, badge: "R2" },
+    { label: "Resource Intelligence", href: "/round2", icon: Award },
     { label: "Water", href: "/water", icon: Droplets, badge: "MVP" },
     { label: "Insights", href: "/insights", icon: Sparkles },
     { label: "Alerts", href: "/alerts", icon: AlertTriangle, badge: "2" },

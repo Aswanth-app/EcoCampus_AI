@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { AppShell } from "@/components/layout/app-shell";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Card } from "@/components/ui/card";
@@ -261,6 +261,10 @@ const JUDGE_QUESTIONS: JudgeQA[] = [
 ];
 
 export default function Round2DemoPage() {
+  useEffect(() => {
+    document.title = "Resource Intelligence | EcoCampus AI";
+  }, []);
+
   const [selectedScenario, setSelectedScenario] = useState<ScenarioType>("scenario_a");
   const [activeTab, setActiveTab] = useState<
     "scenarios" | "architecture" | "sensors" | "ai" | "scale" | "security" | "integrity" | "qa"
@@ -290,8 +294,8 @@ export default function Round2DemoPage() {
       <Breadcrumb
         items={[
           { label: "Eco Flux University" },
-          { label: "Round 2 Hackathon", href: "/round2" },
-          { label: "Demo & Explainability" },
+          { label: "Resource Intelligence", href: "/round2" },
+          { label: "Context-Aware Analysis" },
         ]}
       />
 
@@ -301,14 +305,14 @@ export default function Round2DemoPage() {
           <div className="flex items-center gap-2.5 mb-1.5 flex-wrap">
             <span className="px-2.5 py-0.5 rounded-full bg-emerald-400/20 text-emerald-200 text-xs font-bold uppercase tracking-wider border border-emerald-300/30 flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5 text-emerald-300" />
-              Round 2 Evaluation Suite
+              Decision Intelligence
             </span>
             <span className="px-2.5 py-0.5 rounded-full bg-cyan-400/20 text-cyan-200 text-xs font-bold uppercase tracking-wider border border-cyan-300/30">
-              Interactive Judge Toolkit
+              Interactive System Toolkit
             </span>
           </div>
           <h2 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            Round 2 Demo &amp; Explainability
+            Resource Intelligence
           </h2>
           <p className="text-emerald-100/80 text-sm mt-1 max-w-2xl leading-relaxed">
             Interactive multi-factor water intelligence demonstration, block deployment architecture, sensor roadmap, and technical FAQ reference.
@@ -323,7 +327,7 @@ export default function Round2DemoPage() {
             onClick={() => setActiveTab("qa")}
           >
             <HelpCircle className="w-4 h-4 mr-1.5 text-emerald-300" />
-            Judge Q&amp;A Panel
+            Decision Q&amp;A Panel
           </Button>
           <Button
             variant="primary"
@@ -348,7 +352,7 @@ export default function Round2DemoPage() {
             { id: "scale", label: "5. Campus Scalability", icon: Layers },
             { id: "security", label: "6. Security & Reliability", icon: ShieldCheck },
             { id: "integrity", label: "7. Live vs Simulation", icon: Database },
-            { id: "qa", label: "8. Judge Q&A (12)", icon: HelpCircle },
+            { id: "qa", label: "8. Technical Q&A (12)", icon: HelpCircle },
           ].map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
@@ -1051,7 +1055,7 @@ export default function Round2DemoPage() {
             <Info className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold uppercase tracking-wider text-emerald-400 block mb-0.5">
-                Official Hackathon Data Integrity Statement
+                Official Data Integrity Statement
               </span>
               <p className="text-gray-200 font-mono text-[11px]">
                 &quot;These scenarios are simulated to demonstrate the decision-making logic. Actual field data will be collected through ESP32 sensor nodes during deployment.&quot;
@@ -1062,7 +1066,7 @@ export default function Round2DemoPage() {
       )}
 
       {/* ======================================================== */}
-      {/* SECTION 8: JUDGE QUESTIONS QUICK ACCESS (12 QUESTIONS) */}
+      {/* SECTION 8: TECHNICAL QUESTIONS QUICK ACCESS (12 QUESTIONS) */}
       {/* ======================================================== */}
       {activeTab === "qa" && (
         <div className="space-y-6">
@@ -1072,10 +1076,10 @@ export default function Round2DemoPage() {
                 <span className="w-6 h-6 rounded-full bg-emerald-100 text-[#0B6B4F] font-bold text-xs flex items-center justify-center">
                   8
                 </span>
-                <h3 className="text-lg font-bold text-gray-900">Judge Questions Quick Access Panel</h3>
+                <h3 className="text-lg font-bold text-gray-900">Decision Intelligence Q&amp;A Panel</h3>
               </div>
               <p className="text-xs text-gray-500 mt-0.5">
-                12 concise, technically rigorous answers for offline hackathon jury evaluation.
+                12 concise, technically rigorous answers for architecture &amp; system evaluation.
               </p>
             </div>
 
@@ -1094,7 +1098,7 @@ export default function Round2DemoPage() {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search judge question or keyword..."
+                placeholder="Search technical question or keyword..."
                 className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-xs focus:outline-none focus:border-[#0B6B4F]"
               />
             </div>
